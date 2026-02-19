@@ -1,0 +1,65 @@
+simulator_name: myoarm_llc_eepos_pointing_adaptive_v101
+
+simulation:
+  bm_model:
+    cls: MyoArm
+    kwargs:
+      shoulder_variant: none
+      reset_type: range_uniform
+  task:
+    cls: EndEffectorPosLowLevelControllerAdaptive
+    kwargs:
+      end_effector: [site, IFtip]      #["geom", "distph2"]
+      shoulder: [body, humphant]
+      target_origin_rel: [-0.1, -0.225, 0.05]
+      target_limits_x: [-0.2, 0.2]
+      target_limits_y: [-0.125, 0]
+      target_limits_z: [-0.35, 0.35]
+      init_target_area_width_scale: 0
+      adaptive_increase_success_rate: 0.6
+      adaptive_decrease_success_rate: 0.3
+      adaptive_change_step_size: 0.05
+      adaptive_change_min_trials: 50
+      adaptive_change_trial_buffer_length: 500
+      # # It's not necessary to define the stateful_information_encoder to Identity encoder, as that is used by default
+      # stateful_information_encoder:
+      #   module: "rl.encoders"
+      #   cls: "Identity"
+  perception_modules:
+  - cls: proprioception.BasicWithEndEffectorPosition
+    kwargs:
+      end_effector: [site, IFtip]        #["geom", "distph2"]
+  effort_model:
+    cls: Neural
+    kwargs:
+      weight: 1e-4
+  run_parameters:
+    action_sample_freq: 20
+    info_keywords: [[success_rate, final], [target_area_dynamic_width_scale, final]]
+
+rl:
+  algorithm: PPO
+  policy_type: policies.MultiInputActorCriticPolicyTanhActions
+  policy_kwargs:
+    activation_fn: torch.nn.LeakyReLU
+    net_arch: [256, 256]
+    log_std_init: 0.0
+    features_extractor_class: feature_extractor.FeatureExtractor
+    normalize_images: false
+  lr:
+    function: schedule.linear_schedule
+    kwargs:
+      initial_value: 5e-5
+      min_value: 1e-7
+      threshold: 0.8
+  total_timesteps: 200_000_000
+  device: cuda
+  num_workers: 10
+  nsteps: 4000
+  batch_size: 1000
+  target_kl: 1.0
+  save_freq: 5_000_000
+version: 1.1.0
+package_name: myoarm_llc_eepos_pointing_adaptive_v101
+gym_name: uitb:myoarm_llc_eepos_pointing_adaptive_v101-v0
+built: '2024-12-05 09:10:54'

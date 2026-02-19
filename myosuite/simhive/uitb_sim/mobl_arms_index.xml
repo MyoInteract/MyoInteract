@@ -1,0 +1,23 @@
+<mujoco model="MoBL Arms Index Model">
+  <include file="assets/mobl_arms_index_assets.xml"/>
+  <asset>
+    <mesh name="eye" file="assets/basic_eye_2.stl" scale="0.05 0.05 0.05"/>
+    <!-- pick a body mesh below -->
+    <!-- <mesh file="../../../../simhive/myo_sim/meshes/human_lowpoly_norighthand.stl" name="human_body"/> -->
+    <mesh file="../../myo_sim/meshes/human_lowpoly_nohand.stl" name="human_body"/>
+  </asset>
+
+  <worldbody>
+    <!-- <camera name="for_testing" pos="-0.8 -0.6 1.5" quat="0.718027 0.437104 -0.31987 -0.437104"/> -->
+    <body name="fixed-eye" pos="0 0 1.2" quat="0.583833 0.399104 -0.399421 -0.583368">
+      <geom name="fixed-eye" quat="0.7106 0.25537 0.616985 0.221728" type="mesh" rgba="1 1 1 1" mesh="eye"/>
+      <camera name="fixed-eye" pos="0 0 0" fovy="120"/>
+    </body>
+    <light name="scene_directional_light" pos="0.9 0.3 2.5" dir="0 0 -1" type="directional" castshadow="false" cutoff="4" exponent="20" diffuse="1 1 1" specular="0 0 0"/>
+    
+    <geom name="body" type="mesh" mesh="human_body" euler="0 0 3.14" contype="0" conaffinity="0"/>
+    <body name="full_body" pos="0 0 1">
+        <include file="assets/mobl_arms_index_body.xml"/>
+    </body>
+  </worldbody>
+</mujoco>

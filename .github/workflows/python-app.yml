@@ -1,0 +1,126 @@
+# This workflow will install Python dependencies, run tests
+
+name: Python application
+
+on:
+  push:
+    branches: [ "main" , "dev"]
+    paths-ignore:
+      - "docs/**"
+      - "**/README.md"
+
+  pull_request:
+    branches: [ "main" , "dev"]
+    paths-ignore:
+      - "docs/**"
+      - "**/README.md"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build:
+    env:
+      DISPLAY: :0
+
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+    - name: Set environment variable for macOS
+      if: ${{ runner.os == 'macOS' }}
+      run: echo "SYSTEM_VERSION_COMPAT=0" >> $GITHUB_ENV
+
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.9"
+
+    - name: Prepare Linux
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo apt-get update -y -qq
+        sudo apt-get install -y xvfb x11-xserver-utils
+        sudo /usr/bin/Xvfb $DISPLAY -screen 0 1280x1024x24 &
+
+    - name: Enable Conda (macOS)
+      if: ${{ runner.os == 'macOS' }}
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-activate-base: false
+        python-version: "3.9"
+
+    - name: Enable Conda (window/ubuntu)
+      if: ${{ runner.os != 'macOS' }}
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        auto-activate-base: false
+
+    - name: Test Conda
+      run: |
+          conda info
+          CONDA_DEFAULT_ENV=test_myosuite
+          conda create --name $CONDA_DEFAULT_ENV python=3.9 -y
+          conda activate $CONDA_DEFAULT_ENV
+
+#     - name: Prepare MacOS
+#       if: ${{ runner.os == 'macOS' }}
+#       run: |
+#         brew install --cask xquartz
+#         brew install hdf5
+#         export CPATH="/opt/homebrew/include/"
+#         export HDF5_DIR=/opt/homebrew/
+#         pip3 install h5py --only-binary h5py
+
+    - name: Install dependencies
+      run: |
+        conda activate $CONDA_DEFAULT_ENV
+        python3 -m pip install --upgrade pip
+        pip3 install -e .
+
+    - name: Run MuJoCo Rendering test
+      if: ${{ runner.os == 'Linux' }}
+      run: python3 -m mujoco.render_test
+
+    - name: Test myoapi
+      run: |
+        conda activate $CONDA_DEFAULT_ENV
+        python3 -m myosuite.tests.test_myoapi
+
+    - name: Run Test environment
+      run: |
+        python3 -m myosuite.tests.test_myo
+
+    - name: Install ffmpeg
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo apt-get install --no-install-recommends ffmpeg && pip3 install ffmpeg scikit-video
+
+    - name: Test rendering
+      if: ${{ runner.os == 'Linux' }}
+      run: python3 -m myosuite.utils.examine_env -e myoElbowPose1D6MRandom-v0 -r offscreen -n 1
+
+    - name: Run Test jupyter-notebooks tutorials
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        source myosuite/tests/test_tutorials.sh
+
+    - name: Run Test gym/gymnasium + stable-baselines3
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        source myosuite/tests/test_versions.sh

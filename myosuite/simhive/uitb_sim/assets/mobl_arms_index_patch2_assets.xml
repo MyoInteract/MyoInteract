@@ -1,0 +1,287 @@
+<mujoco model="MoBL Arms Index Model">
+  <compiler angle="radian" boundmass="0.001" boundinertia="0.001"/>
+
+  <size njmax="1000" nconmax="400" nuser_jnt="1"/>
+
+  <visual>
+    <global offwidth="1280" offheight="960"/>
+  </visual>
+
+  <default>
+    <joint stiffness="2" limited="true" armature="0.1" damping="0.5"/>
+    <geom contype="0" conaffinity="0" margin="0.001" rgba="0.8 0.6 0.4 1"/>
+    <site size="0.001 0.005 0.005" rgba="0.5 0.5 0.5 0"/>
+    <!-- <mesh maxhullvert="64"/> -->
+
+    <tendon rgba="0.95 0.3 0.3 1"/>
+    <general ctrllimited="true" ctrlrange="0 1" dyntype="muscle" dynprm="0.01 0.04 0 0 0 0 0 0 0 0" gaintype="muscle" biastype="muscle" gainprm="0.75 1.05 -1 2000 0.5 1.6 1.5 1.3 1.2" biasprm="0.75 1.05 -1 2000 0.5 1.6 1.5 1.3 1.2"/>
+    <default class="arm_skin">
+        <geom type="capsule" contype="0" conaffinity="0" condim="3" rgba="0.8 0.7 .5 .1" margin="0.001" material="MatSkin"/>
+    </default>
+    <default class="hand_skin">
+        <geom type="capsule" contype="1" conaffinity="0" condim="3" rgba="0.8 0.7 .5 .1" margin="0.001" material="MatSkin"/>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="1 1 1" rgb2="0.6 0.8 1" width="256" height="1536"/>
+    <material name="MatSkin" specular="0.2" shininess=".1" reflectance="0.5" rgba="0.9 .7 .5 1"/>
+    <mesh name="thorax" file="assets/thorax.stl"/>
+    <mesh name="clavicle" file="assets/clavicle.stl"/>
+    <mesh name="scapula" file="assets/scapula.stl"/>
+    <mesh name="humerus" file="assets/humerus.stl"/>
+    <mesh name="ulna" file="assets/ulna.stl"/>
+    <mesh name="radius" file="assets/radius.stl"/>
+    <mesh name="lunate" file="assets/lunate.stl"/>
+    <mesh name="sdfastSCAPHOIDw" file="assets/sdfastSCAPHOIDw.stl"/>
+    <mesh name="sdfastPISIFORMw" file="assets/sdfastPISIFORMw.stl"/>
+    <mesh name="sdfastTRIQUETRALw" file="assets/sdfastTRIQUETRALw.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_5mc" file="assets/sdfast_1seg_hand_fr_c_5mc.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_4mc" file="assets/sdfast_1seg_hand_fr_c_4mc.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_3mc" file="assets/sdfast_1seg_hand_fr_c_3mc.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_2mc" file="assets/sdfast_1seg_hand_fr_c_2mc.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_trapezium" file="assets/sdfast_1seg_hand_fr_c_trapezium.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_trapezoid" file="assets/sdfast_1seg_hand_fr_c_trapezoid.stl"/>
+    <mesh name="sdfast_1seg_hand_fr_c_hamate" file="assets/sdfast_1seg_hand_fr_c_hamate.stl"/>
+    <mesh name="capitate" file="assets/capitate.stl"/>
+    <mesh name="hand_2proxph" file="assets/hand_2proxph_pointing.stl"/>
+    <mesh name="hand_2midph" file="assets/hand_2midph_pointing.stl"/>
+    <mesh name="hand_2distph" file="assets/hand_2distph_pointing.stl"/>
+    <mesh name="hand_3proxph" file="assets/hand_3proxph.stl"/>
+    <mesh name="hand_3midph" file="assets/hand_3midph.stl"/>
+    <mesh name="hand_3distph" file="assets/hand_3distph.stl"/>
+    <mesh name="hand_4proxph" file="assets/hand_4proxph.stl"/>
+    <mesh name="hand_4midph" file="assets/hand_4midph.stl"/>
+    <mesh name="hand_4distph" file="assets/hand_4distph.stl"/>
+    <mesh name="hand_5proxph" file="assets/hand_5proxph.stl"/>
+    <mesh name="hand_5midph" file="assets/hand_5midph.stl"/>
+    <mesh name="hand_5distph" file="assets/hand_5distph.stl"/>
+    <mesh name="hand_thumbprox" file="assets/hand_thumbprox.stl"/>
+    <mesh name="hand_thumbdist" file="assets/hand_thumbdist.stl"/>
+    <mesh name="hand_1mc" file="assets/hand_1mc.stl"/>
+    <mesh name="eye" file="assets/basic_eye_2.stl" scale="0.05 0.05 0.05"/>
+  </asset>
+  
+  <contact>
+    <!-- <pair geom1="humerus_coll" geom2="thorax_coll0" condim="3"/>
+    <pair geom1="humerus_coll" geom2="thorax_coll1" condim="3"/>
+    <pair geom1="radius_coll" geom2="thorax_coll0" condim="3"/>
+    <pair geom1="radius_coll" geom2="thorax_coll1" condim="3"/>
+    <pair geom1="radius_coll" geom2="thorax_coll2" condim="3"/>
+    <pair geom1="radius_coll" geom2="thorax_coll3" condim="3"/> -->
+    <exclude body1="ulna" body2="radius"/>
+    <exclude body1="radius" body2="index3"/>
+    <!-- <exclude body1="proxph2" body2="proxph3"/>
+    <exclude body1="proxph3" body2="proxph4"/>
+    <exclude body1="proxph4" body2="proxph5"/> -->
+  </contact>
+
+  <equality>
+    <joint name="sternoclavicular_r2_con" joint1="sternoclavicular_r2" joint2="shoulder_elv" polycoef="0 -0.242001 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="sternoclavicular_r3_con" joint1="sternoclavicular_r3" joint2="shoulder_elv" polycoef="0 0.1025 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="unrotscap_r2_con" joint1="unrotscap_r2" joint2="shoulder_elv" polycoef="0 0.242001 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="unrotscap_r3_con" joint1="unrotscap_r3" joint2="shoulder_elv" polycoef="0 -0.1025 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="acromioclavicular_r1_con" joint1="acromioclavicular_r1" joint2="shoulder_elv" polycoef="0 0.178 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="acromioclavicular_r2_con" joint1="acromioclavicular_r2" joint2="shoulder_elv" polycoef="0 -0.0490002 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="acromioclavicular_r3_con" joint1="acromioclavicular_r3" joint2="shoulder_elv" polycoef="0 0.396002 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="unrothum_r1_con" joint1="unrothum_r1" joint2="shoulder_elv" polycoef="0 -0.178 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="unrothum_r2_con" joint1="unrothum_r2" joint2="shoulder_elv" polycoef="0 0.0490002 0 0 0" solimp="0.9999 0.9999"/>
+    <joint name="unrothum_r3_con" joint1="unrothum_r3" joint2="shoulder_elv" polycoef="0 -0.396002 0 0 0" solimp="0.9999 0.9999"/>
+    <!-- <joint name="shoulder1_r2_con" joint1="shoulder1_r2" joint2="elv_angle" polycoef="0 -1 0 0.6366198 12" solimp="0.9999 0.9999"/> -->
+    <joint name="shoulder1_r2_con" joint1="shoulder1_r2" joint2="elv_angle" polycoef="1.08 -1.08 -0.358 0.62780 12" solimp="0.9999 0.9999"/>
+    <joint name="r_z_constraint" joint1="r_z" polycoef="0 0 0 0 0"/>
+    <weld name="origin_to_worldbody" body1="thorax" anchor="0 0 0" relpose="0 0 0 1 0 0 0" torquescale="1" active="false"/>
+  </equality>
+
+  <tendon>
+    <spatial name="DELT1_tendon">
+      <site site="DELT1-P1"/>
+      <site site="DELT1-P2"/>
+      <site site="DELT1-P3"/>
+      <site site="DELT1-P4"/>
+    </spatial>
+    <spatial name="DELT2_tendon">
+      <site site="DELT2-P1"/>
+      <site site="DELT2-P2"/>
+      <site site="DELT2-P3"/>
+      <site site="DELT2-P4"/>
+    </spatial>
+    <spatial name="DELT3_tendon">
+      <site site="DELT3-P1"/>
+      <site site="DELT3-P2"/>
+      <site site="DELT3-P3"/>
+    </spatial>
+    <spatial name="SUPSP_tendon">
+      <site site="SUPSP-P1"/>
+      <site site="SUPSP-P2"/>
+      <site site="SUPSP-P3"/>
+    </spatial>
+    <spatial name="INFSP_tendon">
+      <site site="INFSP-P1"/>
+      <site site="INFSP-P2"/>
+    </spatial>
+    <spatial name="SUBSC_tendon">
+      <site site="SUBSC-P1"/>
+      <site site="SUBSC-P2"/>
+      <site site="SUBSC-P3"/>
+    </spatial>
+    <spatial name="TMIN_tendon">
+      <site site="TMIN-P1"/>
+      <site site="TMIN-P2"/>
+      <site site="TMIN-P3"/>
+    </spatial>
+    <spatial name="TMAJ_tendon">
+      <site site="TMAJ-P1"/>
+      <site site="TMAJ-P2"/>
+      <site site="TMAJ-P3"/>
+    </spatial>
+    <spatial name="PECM1_tendon">
+      <site site="PECM1-P1"/>
+      <site site="PECM1-P2"/>
+      <site site="PECM1-P3"/>
+      <site site="PECM1-P4"/>
+    </spatial>
+    <spatial name="PECM2_tendon">
+      <site site="PECM2-P1"/>
+      <site site="PECM2-P2"/>
+      <site site="PECM2-P3"/>
+      <site site="PECM2-P4"/>
+      <site site="PECM2-P5"/>
+    </spatial>
+    <spatial name="PECM3_tendon">
+      <site site="PECM3-P1"/>
+      <site site="PECM3-P2"/>
+      <site site="PECM3-P3"/>
+      <site site="PECM3-P4"/>
+      <site site="PECM3-P5"/>
+    </spatial>
+    <spatial name="LAT1_tendon">
+      <site site="LAT1-P1"/>
+      <site site="LAT1-P2"/>
+      <site site="LAT1-P3"/>
+      <site site="LAT1-P4"/>
+      <site site="LAT1-P5"/>
+    </spatial>
+    <spatial name="LAT2_tendon">
+      <site site="LAT2-P1"/>
+      <site site="LAT2-P2"/>
+      <site site="LAT2-P3"/>
+      <site site="LAT2-P4"/>
+      <site site="LAT2-P5"/>
+    </spatial>
+    <spatial name="LAT3_tendon">
+      <site site="LAT3-P1"/>
+      <site site="LAT3-P2"/>
+      <site site="LAT3-P3"/>
+      <site site="LAT3-P4"/>
+      <site site="LAT3-P5"/>
+    </spatial>
+    <spatial name="CORB_tendon">
+      <site site="CORB-P1"/>
+      <site site="CORB-P2"/>
+      <site site="CORB-P3"/>
+    </spatial>
+    <spatial name="TRIlong_tendon">
+      <site site="TRIlong-P1"/>
+      <site site="TRIlong-P2"/>
+      <site site="TRIlong-P3"/>
+      <site site="TRIlong-P4"/>
+      <site site="TRIlong-P5"/>
+    </spatial>
+    <spatial name="TRIlat_tendon">
+      <site site="TRIlat-P1"/>
+      <site site="TRIlat-P2"/>
+      <site site="TRIlat-P3"/>
+      <site site="TRIlat-P4"/>
+      <site site="TRIlat-P5"/>
+    </spatial>
+    <spatial name="TRImed_tendon">
+      <site site="TRImed-P1"/>
+      <site site="TRImed-P2"/>
+      <site site="TRImed-P3"/>
+      <site site="TRImed-P4"/>
+      <site site="TRImed-P5"/>
+    </spatial>
+    <spatial name="ANC_tendon">
+      <site site="ANC-P1"/>
+      <site site="ANC-P2"/>
+    </spatial>
+    <spatial name="SUP_tendon">
+      <site site="SUP-P1"/>
+      <site site="SUP-P2"/>
+      <site site="SUP-P3"/>
+    </spatial>
+    <spatial name="BIClong_tendon">
+      <site site="BIClong-P1"/>
+      <site site="BIClong-P2"/>
+      <site site="BIClong-P3"/>
+      <site site="BIClong-P4"/>
+      <site site="BIClong-P5"/>
+      <site site="BIClong-P6"/>
+      <site site="BIClong-P7"/>
+      <site site="BIClong-P8"/>
+      <site site="BIClong-P9"/>
+      <site site="BIClong-P11"/>
+    </spatial>
+    <spatial name="BICshort_tendon">
+      <site site="BICshort-P1"/>
+      <site site="BICshort-P2"/>
+      <site site="BICshort-P3"/>
+      <site site="BICshort-P4"/>
+      <site site="BICshort-P5"/>
+      <site site="BICshort-P6"/>
+      <site site="BICshort-P8"/>
+    </spatial>
+    <spatial name="BRA_tendon">
+      <site site="BRA-P1"/>
+      <site site="BRA-P2"/>
+      <site site="BRA-P3"/>
+      <site site="BRA-P4"/>
+    </spatial>
+    <spatial name="BRD_tendon">
+      <site site="BRD-P1"/>
+      <site site="BRD-P2"/>
+      <site site="BRD-P3"/>
+    </spatial>
+    <spatial name="PT_tendon">
+      <site site="PT-P1"/>
+      <site site="PT-P2"/>
+      <site site="PT-P3"/>
+      <site site="PT-P4"/>
+      <site site="PT-P5"/>
+    </spatial>
+    <spatial name="PQ_tendon">
+      <site site="PQ-P1"/>
+      <site site="PQ-P2"/>
+    </spatial>
+  </tendon>
+
+  <actuator>
+    <general name="DELT1" tendon="DELT1_tendon" lengthrange="0.138246 0.273986" gainprm="0.5 2 1218.9 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 1218.9"/>
+    <general name="DELT2" tendon="DELT2_tendon" lengthrange="0.161563 0.317754" gainprm="0.5 2 1103.5 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 1103.5"/>
+    <general name="DELT3" tendon="DELT3_tendon" lengthrange="0.103005 0.298019" gainprm="0.5 2 201.6 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 201.6"/>
+    <general name="SUPSP" tendon="SUPSP_tendon" lengthrange="0.0733458 0.174883" gainprm="0.5 2 499.2 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 499.2"/>
+    <general name="INFSP" tendon="INFSP_tendon" lengthrange="0.0664933 0.173573" gainprm="0.5 2 1075.8 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 1075.8"/>
+    <general name="SUBSC" tendon="SUBSC_tendon" lengthrange="0.0740175 0.19707" gainprm="0.5 2 1306.9 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 1306.9"/>
+    <general name="TMIN" tendon="TMIN_tendon" lengthrange="0.105147 0.206687" gainprm="0.5 2 269.5 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 269.5"/>
+    <general name="TMAJ" tendon="TMAJ_tendon" lengthrange="0.0980544 0.332218" gainprm="0.5 2 144 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 144"/>
+    <general name="PECM1" tendon="PECM1_tendon" lengthrange="0.0717495 0.278598" gainprm="0.5 2 444.3 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 444.3"/>
+    <general name="PECM2" tendon="PECM2_tendon" lengthrange="0.151241 0.337966" gainprm="0.5 2 658.3 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 658.3"/>
+    <general name="PECM3" tendon="PECM3_tendon" lengthrange="0.194762 0.383047" gainprm="0.5 2 498.1 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 498.1"/>
+    <general name="LAT1" tendon="LAT1_tendon" lengthrange="0.235101 0.580404" gainprm="0.5 2 290.5 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 290.5"/>
+    <general name="LAT2" tendon="LAT2_tendon" lengthrange="0.286369 0.615977" gainprm="0.5 2 317.5 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 317.5"/>
+    <general name="LAT3" tendon="LAT3_tendon" lengthrange="0.270488 0.661051" gainprm="0.5 2 189 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 189"/>
+    <general name="CORB" tendon="CORB_tendon" lengthrange="0.138521 0.263084" gainprm="0.5 2 208.2 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 208.2"/>
+    <general name="TRIlong" tendon="TRIlong_tendon" lengthrange="0.208536 0.405144" gainprm="0.5 2 771.8 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 771.8"/>
+    <general name="TRIlat" tendon="TRIlat_tendon" lengthrange="0.154199 0.322798" gainprm="0.5 2 717.5 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 717.5"/>
+    <general name="TRImed" tendon="TRImed_tendon" lengthrange="0.146999 0.315598" gainprm="0.5 2 717.5 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 717.5"/>
+    <general name="ANC" tendon="ANC_tendon" lengthrange="0.0314998 0.072" gainprm="0.5 2 283.2 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 283.2"/>
+    <general name="SUP" tendon="SUP_tendon" lengthrange="0.0445 0.0939999" gainprm="0.5 2 379.6 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 379.6"/>
+    <general name="BIClong" tendon="BIClong_tendon" lengthrange="0.33015 0.5037" gainprm="0.5 2 525.1 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 525.1"/>
+    <general name="BICshort" tendon="BICshort_tendon" lengthrange="0.25835 0.4565" gainprm="0.5 2 316.8 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 316.8"/>
+    <general name="BRA" tendon="BRA_tendon" lengthrange="0.0963999 0.2251" gainprm="0.5 2 1177.37 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 1177.37"/>
+    <general name="BRD" tendon="BRD_tendon" lengthrange="0.2193 0.4782" gainprm="0.5 2 276 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 276"/>
+    <general name="PT" tendon="PT_tendon" lengthrange="0.122226 0.194905" gainprm="0.5 2 557.2 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 557.2"/>
+    <general name="PQ" tendon="PQ_tendon" lengthrange="0.0188858 0.0605431" gainprm="0.5 2 284.7 2000 0.4327 1.595 10 0.725016 1.4" biasprm="0.75 1.05 284.7"/>
+  </actuator>
+</mujoco>

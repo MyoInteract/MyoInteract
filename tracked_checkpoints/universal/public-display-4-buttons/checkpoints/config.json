@@ -1,0 +1,268 @@
+{
+    "env": {
+        "ctrl_dt": 0.05,
+        "env_name": "MyoUserUniversal",
+        "eval_mode": false,
+        "model_path": "myosuite/envs/myo/assets/arm/mobl_arms_index_universal_myouser.xml",
+        "muscle_config": {
+            "control_type": "default",
+            "muscle_condition": null,
+            "noise_params": {
+                "constantnoise_level": 0.185,
+                "constantnoise_type": null,
+                "sigdepnoise_level": 0.103,
+                "sigdepnoise_type": null
+            },
+            "sex": null
+        },
+        "sim_dt": 0.002,
+        "task_config": {
+            "dwell_duration": 0.25,
+            "max_duration": 4.0,
+            "max_trials": 1,
+            "obs_keys": [
+                "qpos",
+                "qvel",
+                "qacc",
+                "ee_pos",
+                "act"
+            ],
+            "omni_keys": [
+                "target_pos",
+                "target_size",
+                "phase"
+            ],
+            "reach_metric": 10.0,
+            "reach_settings": {
+                "ref_site": "humphant",
+                "target_origin_rel": [
+                    0.0,
+                    0.0,
+                    0.0
+                ]
+            },
+            "reset_type": "range_uniform",
+            "show_all_targets": true,
+            "target_init_seed": 15,
+            "targets": {
+                "num_targets": 4,
+                "target_0": {
+                    "completion_bonus": 0.0,
+                    "euler": [
+                        0.0,
+                        -1.5707963267948966,
+                        0.0
+                    ],
+                    "geom_margin": 0.001,
+                    "geom_size": [
+                        0.025,
+                        0.025,
+                        0.01
+                    ],
+                    "min_touch_force": 1.0,
+                    "name": "button_target",
+                    "position": [
+                        0.42,
+                        -0.15,
+                        0.01
+                    ],
+                    "rgb": [
+                        0.8,
+                        0.1,
+                        0.1
+                    ],
+                    "site_pos": [
+                        0.0,
+                        0.0,
+                        0.01
+                    ],
+                    "site_size": [
+                        0.02,
+                        0.02,
+                        0.01
+                    ]
+                },
+                "target_1": {
+                    "completion_bonus": 0.0,
+                    "euler": [
+                        0.0,
+                        -1.5707963267948966,
+                        0.0
+                    ],
+                    "geom_margin": 0.001,
+                    "geom_size": [
+                        0.025,
+                        0.025,
+                        0.01
+                    ],
+                    "min_touch_force": 1.0,
+                    "name": "button_target",
+                    "position": [
+                        0.42,
+                        0.15,
+                        0.01
+                    ],
+                    "rgb": [
+                        0.1,
+                        0.8,
+                        0.1
+                    ],
+                    "site_pos": [
+                        0.0,
+                        0.0,
+                        0.01
+                    ],
+                    "site_size": [
+                        0.02,
+                        0.02,
+                        0.01
+                    ]
+                },
+                "target_2": {
+                    "completion_bonus": 0.0,
+                    "euler": [
+                        0.0,
+                        -1.5707963267948966,
+                        0.0
+                    ],
+                    "geom_margin": 0.001,
+                    "geom_size": [
+                        0.025,
+                        0.025,
+                        0.01
+                    ],
+                    "min_touch_force": 1.0,
+                    "name": "button_target",
+                    "position": [
+                        0.42,
+                        -0.15,
+                        -0.29
+                    ],
+                    "rgb": [
+                        0.1,
+                        0.1,
+                        0.8
+                    ],
+                    "site_pos": [
+                        0.0,
+                        0.0,
+                        0.01
+                    ],
+                    "site_size": [
+                        0.02,
+                        0.02,
+                        0.01
+                    ]
+                },
+                "target_3": {
+                    "completion_bonus": 0.0,
+                    "euler": [
+                        0.0,
+                        -1.5707963267948966,
+                        0.0
+                    ],
+                    "geom_margin": 0.001,
+                    "geom_size": [
+                        0.025,
+                        0.025,
+                        0.01
+                    ],
+                    "min_touch_force": 1.0,
+                    "name": "button_target",
+                    "position": [
+                        0.42,
+                        0.15,
+                        -0.29
+                    ],
+                    "rgb": [
+                        0.8,
+                        0.8,
+                        0.1
+                    ],
+                    "site_pos": [
+                        0.0,
+                        0.0,
+                        0.01
+                    ],
+                    "site_size": [
+                        0.02,
+                        0.02,
+                        0.01
+                    ]
+                }
+            },
+            "weighted_reward_keys": {
+                "done": 10.0,
+                "neural_effort": 0.001,
+                "phase_bonus": 0.0,
+                "reach": 1.0
+            }
+        },
+        "vision": {
+            "enabled": false
+        }
+    },
+    "rl": {
+        "action_repeat": 1,
+        "batch_size": 128,
+        "clipping_epsilon": 0.3,
+        "discounting": 0.97,
+        "entropy_cost": 0.001,
+        "episode_length": 80,
+        "learning_rate": 0.0003,
+        "load_checkpoint_path": "None",
+        "log_training_metrics": true,
+        "max_grad_norm": 1.0,
+        "network_factory": {
+            "policy_hidden_layer_sizes": [
+                128,
+                128,
+                128,
+                128
+            ],
+            "value_hidden_layer_sizes": [
+                256,
+                256,
+                256,
+                256,
+                256
+            ]
+        },
+        "normalize_observations": true,
+        "num_checkpoints": 1,
+        "num_envs": 1024,
+        "num_evals": 1,
+        "num_minibatches": 8,
+        "num_resets_per_eval": 1,
+        "num_timesteps": 6000000,
+        "num_updates_per_batch": 8,
+        "reward_scaling": 0.1,
+        "training_metrics_steps": 100000,
+        "unroll_length": 10
+    },
+    "run": {
+        "deterministic_rscope": true,
+        "domain_randomization": false,
+        "eval_episodes": 10,
+        "eval_seed": 123,
+        "local_plotting": false,
+        "log_wandb_videos": true,
+        "play_only": false,
+        "rscope_envs": null,
+        "seed": 0,
+        "suffix": null,
+        "use_tb": false,
+        "using_gradio": true
+    },
+    "vision": {
+        "enabled": false
+    },
+    "wandb": {
+        "enabled": true,
+        "entity": "biom-rl-ui",
+        "group": null,
+        "name": "public-display-4-buttons",
+        "project": "universal",
+        "tags": null
+    }
+}
