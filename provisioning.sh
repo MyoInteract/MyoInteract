@@ -45,7 +45,7 @@ echo "Current directory after cd command: $(pwd)"
 # Replace with your actual repo URL
 if [ ! -d "myointeract_ui_course" ]; then
     echo "Before Starting cloning"
-    git clone git clone https://github.com/fl0fischer/myointeract_ui_course.git
+    git clone https://github.com/fl0fischer/myointeract_ui_course.git
     echo "Cloning complete"
     cd myointeract_ui_course
     echo "Changed into folder myosuite"
