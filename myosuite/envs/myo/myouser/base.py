@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from typing import Tuple
 from omegaconf import MISSING, OmegaConf
 from copy import deepcopy
+from myosuite.envs.myo.myouser.paths import bundled_path
 
 OmegaConf.register_new_resolver("int_divide", lambda x, y: int(x / y))
 
@@ -107,7 +108,7 @@ class MyoUserBase(mjx_env.MjxEnv):
 
     @property
     def xml_path(self) -> str:
-        return self._config.model_path
+        return str(bundled_path(self._config.model_path))
     
     def __init__(
         self,
@@ -672,6 +673,7 @@ class MyoUserBase(mjx_env.MjxEnv):
         if self.vision:
             if (
                 self.vision_mode == "rgb"
+                or self.vision_mode == "rgb+depth"
                 or self.vision_mode == "rgbd"
                 or self.vision_mode == "rgbd_only"
             ):
@@ -685,14 +687,18 @@ class MyoUserBase(mjx_env.MjxEnv):
                 obs_dict["pixels/depth"] = info["pixels/depth"]
         return obs_dict
 
-    def generate_pixels(self, data, render_token=None):
+    def generate_pixels(self, data, render_token=None, model=None, refresh_model=False):
         # Generates the view of the environment using the batch renderer
         update_info = {}
-        if render_token is None:  # Initialize renderer during reset
-            render_token, rgb, depth = self.batch_renderer.init(data, self._mjx_model)
-            update_info.update({"render_token": render_token})
+        if render_token is None or refresh_model:
+            # init refreshes the renderer's model buffers as well as transforms.
+            # Task-specific visual models can change target size and visibility.
+            render_token, rgb, depth = self.batch_renderer.init(
+                data, self._mjx_model if model is None else model
+            )
         else:  # Render during step
-            _, rgb, depth = self.batch_renderer.render(render_token, data)
+            render_token, rgb, depth = self.batch_renderer.render(render_token, data)
+        update_info["render_token"] = render_token
         pixels = rgb[0][..., :3].astype(jp.float32) / 255.0
         depth = depth[0].astype(jp.float32)
 
