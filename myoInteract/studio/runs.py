@@ -9,6 +9,7 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -25,6 +26,13 @@ LOG_ROOT = Path("logs") / "rsl_rl"
 EXAMPLE_PREFIX = "examples/"  # run ids of the bundled example policies (read-only)
 _CKPT = re.compile(r"model_(\d+|final|stopped)\.onnx$")
 _LOGGER = logging.getLogger(__name__)
+_CURVE_TAGS = {
+    "Episode_Termination/episode_success",
+    "Episode_Termination/time_out",
+    "Train/mean_reward",
+    "Train/mean_episode_length",
+    "Perf/total_fps",
+}
 
 
 def _contained_path(root: Path, *parts: str | Path) -> Path:
@@ -202,7 +210,7 @@ class _Scalars:
 
     def read(self) -> dict[str, list[tuple[int, float]]]:
         self.acc.Reload()
-        tags = set(self.acc.Tags().get("scalars", []))
+        tags = _CURVE_TAGS.intersection(self.acc.Tags().get("scalars", []))
         return {t: [(e.step, e.value) for e in self.acc.Scalars(t)] for t in tags}
 
 
@@ -536,6 +544,7 @@ class JobManager:
         self._stopped: set[str] = set()  # jobs ended on request, not by failing
         self._warm_enabled = warm
         self._warm: subprocess.Popen | None = None
+        self._warm_lock = threading.Lock()
         if warm:
             self._start_warm()
 
@@ -547,28 +556,33 @@ class JobManager:
 
     def _take_warm(self, argv: list[str], log: Path) -> subprocess.Popen | None:
         """Hand a job to the waiting worker (and start the next one); None if there is none."""
-        proc, self._warm = self._warm, None
-        if proc is None or proc.poll() is not None:
-            if self._warm_enabled:
-                self._start_warm()
-            return None
-        try:
-            proc.stdin.write(
-                (json.dumps({"argv": argv, "log": str(log)}) + "\n").encode()
-            )
-            proc.stdin.close()
-        except OSError:
-            return None
-        finally:
-            if self._warm_enabled:
-                self._start_warm()
-        return proc
+        # A handoff and its replacement are one ownership change. Concurrent
+        # requests must not spawn replacements that overwrite each other.
+        with self._warm_lock:
+            proc, self._warm = self._warm, None
+            if proc is None or proc.poll() is not None:
+                if self._warm_enabled:
+                    self._start_warm()
+                return None
+            try:
+                proc.stdin.write(
+                    (json.dumps({"argv": argv, "log": str(log)}) + "\n").encode()
+                )
+                proc.stdin.close()
+            except OSError:
+                return None
+            finally:
+                if self._warm_enabled:
+                    self._start_warm()
+            return proc
 
     def close(self) -> None:
         """Stop the waiting worker (the server shuts down)."""
-        if self._warm is not None:
-            _terminate(self._warm, self._warm.pid)
-            self._warm = None
+        with self._warm_lock:
+            self._warm_enabled = False
+            if self._warm is not None:
+                _terminate(self._warm, self._warm.pid)
+                self._warm = None
 
     def start(
         self, kind: str, args: list[str], inputs: dict[str, Any] | None = None
