@@ -9,7 +9,7 @@ import { TransformControls } from "./vendor/three/addons/TransformControls.js";
 
 // Orientation of a button: its own (three order x, y, z, w) or, from the tilt angle alone, MuJoCo's
 // euler [0, -angle, 0] (90 degrees: upright, facing the user).
-export const buttonQuat = (t) => (t.quat ? new THREE.Quaternion().fromArray(t.quat) : new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (-(t.angle ?? 90) * Math.PI) / 180, 0, "XYZ")));
+export const buttonQuat = (t) => (t.euler ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...t.euler, "XYZ")) : t.quat ? new THREE.Quaternion().fromArray(t.quat) : new THREE.Quaternion().setFromEuler(new THREE.Euler(0, (-(t.angle ?? 90) * Math.PI) / 180, 0, "XYZ")));
 // MuJoCo euler (x, y, z in radians, its default sequence) of a three quaternion.
 export const quatToEuler = (q) => { const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().fromArray(q), "XYZ"); return [e.x, e.y, e.z].map((v) => Math.round(v * 1e5) / 1e5); };
 const MJ_QUAT = (q) => new THREE.Quaternion(q[1], q[2], q[3], q[0]); // MuJoCo w, x, y, z -> three
@@ -413,7 +413,8 @@ export class StudioScene extends EventTarget {
     let marker;
     if (t.type === "Button") {
       // width, height and thickness (m); the thin axis is the button's normal
-      marker = new THREE.Mesh(new THREE.BoxGeometry(t.bw || 0.05, t.bh || 0.05, t.bt || 0.02), new THREE.MeshStandardMaterial({ color, roughness: 0.5, ...(t.screenEl != null ? { transparent: true, opacity: 0.45 } : {}) }));  // on a screen: the design stays visible
+      const extent = (value, fallback) => Array.isArray(value) ? (value[0] + value[1]) / 2 : value ?? fallback;
+      marker = new THREE.Mesh(new THREE.BoxGeometry(extent(t.bw, 0.05), extent(t.bh, 0.05), extent(t.bt, 0.02)), new THREE.MeshStandardMaterial({ color, roughness: 0.5, ...(t.screenEl != null ? { transparent: true, opacity: 0.45 } : {}) }));  // on a screen: the design stays visible
       marker.quaternion.copy(buttonQuat(t));
     } else {
       const r = Math.max(...t.size);
@@ -462,6 +463,8 @@ export class StudioScene extends EventTarget {
     if (obj.userData.target != null && obj.parent && obj.parent.userData.marker === obj) {  // a button turned by hand
       const k = obj.userData.target;
       this.targetData[k].quat = obj.quaternion.toArray().map((v) => Math.round(v * 1e5) / 1e5);
+      delete this.targetData[k].euler;
+      this.targetData[k].angle = -quatToEuler(this.targetData[k].quat)[1] * 180 / Math.PI;
       this._emit("rotate", { i: k });
       return;
     }

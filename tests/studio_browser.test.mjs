@@ -6,7 +6,7 @@ import vm from "node:vm";
 import { performance } from "node:perf_hooks";
 import test from "node:test";
 import * as THREE from "../myoInteract/studio/static/vendor/three/three.module.min.js";
-import { StudioScene } from "../myoInteract/studio/static/scene.js";
+import { StudioScene, buttonQuat } from "../myoInteract/studio/static/scene.js";
 import { TaskSim } from "../myoInteract/studio/static/sim.js";
 import loadMujoco from "../myoInteract/studio/static/vendor/mujoco/mujoco.js";
 
@@ -21,6 +21,7 @@ function codecScope() {
   const scope = callback("const MODELS =", "try { const t = localStorage", { structuredClone }, "({S,DEFAULTS,MODELS,RESETS,OBS,EXTRA_REWARDS,COLORS})");
   scope.structuredClone = structuredClone;
   scope.esc = callback("const esc =", "const h =", {}, "esc");
+  scope.buttonEuler = callback("function buttonEuler(", "function rewardOverride(", scope, "buttonEuler");
   scope.rewardOverride = callback("function rewardOverride(", "function toPreset()", scope, "rewardOverride");
   Object.assign(scope, callback("function presetObject(", "// The Gradio task builder", scope,
     "({presetObject,presetNumber,presetText,normalizePreset,normalizeTarget,normalizeScreen,fromPreset,hexToRgba,rgbaToHex})"));
@@ -29,7 +30,7 @@ function codecScope() {
   scope.toPreset = callback("function toPreset()", "function presetObject(", scope, "toPreset");
   return scope;
 }
-const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
+const deferred = () => { let resolve, reject; const promise = new Promise((r, j) => { resolve = r; reject = j; }); return { promise, resolve, reject }; };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 globalThis.document = {
@@ -327,6 +328,7 @@ test("switching backend clears old monitoring and ignores a stale training-start
     S: { backend: "http://a", run: null }, api: () => pending.promise, render() {}, toPreset: () => ({}),
     followRun() { throw new Error("stale monitoring started"); },
     $: () => ({ classList: { add() {} } }), renderPresetList() {}, loadWandb() {},
+    closeLive() {}, stopSim() {}, clearInterval() {}, clearTimeout() {},
   };
   const start = callback("async function startBackendRun()", "async function followRun(", scope, "startBackendRun");
   const finished = start();
@@ -337,6 +339,175 @@ test("switching backend clears old monitoring and ignores a stale training-start
   pending.resolve({ id: "old" });
   await finished;
   assert.equal(scope.S.run.id, "new");
+});
+
+test("switching backend closes the old feed, clears job state and rejects queued socket messages", () => {
+  const sockets = [], cleared = [], disposed = [];
+  const scope = {
+    S: { backend: "http://a", backendEpoch: 1, step: 6, run: { id: "a" }, viewer: { key: "view-a" }, live: { model: "arm-a" }, liveStatus: "playing", mus: {}, evalJob: { run: "a", result: {} }, runs: [{ id: "a" }], sim: { timer: 3, engine: { dispose: () => disposed.push(true) } }, replayTimer: 4, evalPoll: 5 },
+    WebSocket: class { constructor(url) { this.url = url; sockets.push(this); } close() { this.closed = true; this.onclose(); } },
+    location: { origin: "http://page" }, api: async () => [], $: () => ({ classList: { add() {} } }), renderPresetList() {}, loadWandb() {},
+    clearInterval: (id) => cleared.push(id), clearTimeout: (id) => cleared.push(id), syncScene() {}, renderSceneBar() {},
+    SC: {}, sceneKeys: {}, liveWanted: () => true,
+  };
+  scope.closeLive = callback("function closeLive()", "const clampM =", scope, "closeLive");
+  scope.stopSim = callback("function stopSim()", "async function startSim(", scope, "stopSim");
+  const connectLive = callback("function connectLive(", "/* ---------------------------------------------------------------- muscle activity", scope, "connectLive");
+  connectLive("view-a");
+  const oldSocket = sockets[0];
+  const connect = callback("function setConnected(", "const fmt =", scope, "setConnected");
+  connect("http://b", "B");
+  assert.equal(oldSocket.closed, true); assert.equal(scope.S.liveSocket, null); assert.equal(scope.S.live, null);
+  assert.equal(scope.S.viewer, null); assert.equal(scope.S.evalJob, null); assert.equal(scope.S.run, null);
+  assert.equal(scope.S.runs.length, 0); assert.equal(scope.S.mus, null); assert.equal(scope.S.sim, null);
+  assert.equal(scope.S.liveStatus, ""); assert.equal(scope.S.runsFetchedAt, 0); assert.equal(scope.S.backendEpoch, 2);
+  assert.deepEqual(disposed, [true]); assert.ok([3, 4, 5].every((id) => cleared.includes(id)));
+  oldSocket.onmessage({ data: JSON.stringify({ type: "hello", model: "stale-a" }) });
+  assert.equal(scope.S.live, null);
+  scope.S.viewer = { key: "view-b" }; connectLive("view-b");
+  const currentSocket = sockets[1]; connect("http://b", "B again");
+  assert.equal(scope.S.liveSocket, currentSocket); assert.equal(scope.S.viewer.key, "view-b"); assert.equal(scope.S.backendEpoch, 2);
+});
+
+test("viewer startup responses belong to one request even when a replacement has the same key", async () => {
+  const first = deferred(), second = deferred(); let calls = 0;
+  const scope = { S: { backend: "http://a", backendEpoch: 1 }, closeLive() {}, renderSceneBar() {}, syncScene() {}, api: () => (++calls === 1 ? first.promise : second.promise) };
+  const open = callback("async function openViewer(", "function connectLive(", scope, "openViewer");
+  const old = open({ run: "same" }, 6, "old");
+  scope.S.viewer = null; scope.S.backendEpoch++;
+  const current = open({ run: "same" }, 6, "new");
+  second.resolve({ id: "new-job", result: { ready: true } }); await current;
+  first.resolve({ id: "old-job", result: { ready: true } }); await old;
+  assert.equal(scope.S.viewer.job, "new-job"); assert.equal(scope.S.viewer.label, "new");
+});
+
+test("run-list responses and errors cannot overwrite a newer request or backend", async () => {
+  for (const change of ["request", "backend", "reconnect"]) {
+    const first = deferred(), second = deferred(); let calls = 0;
+    const scope = { S: { backend: "http://a", backendEpoch: 1, step: 6, runs: [] }, api: () => (++calls === 1 ? first.promise : second.promise), render() {} };
+    const load = callback("async function loadRuns(", "function renderEvaluateBackend(", scope, "loadRuns");
+    const old = load(true);
+    if (change === "backend") scope.S.backend = "http://b";
+    if (change === "reconnect") scope.S.backendEpoch++;
+    const current = load(true); second.resolve([{ id: "current" }]); await current;
+    first.resolve([{ id: "stale" }]); await old;
+    assert.equal(scope.S.runs[0].id, "current");
+  }
+  const pending = deferred(), scope = { S: { backend: "http://a", step: 6, evalJob: { run: "new" } }, api: () => pending.promise, render() { throw new Error("stale render"); } };
+  const old = callback("async function loadRuns(", "function renderEvaluateBackend(", scope, "loadRuns")(true);
+  scope.S.backend = "http://b";
+  pending.reject(new Error("old backend offline")); await old;
+  assert.equal(scope.S.evalJob.error, undefined);
+});
+
+test("a changed evaluation selection or backend prevents old results and further polling", async () => {
+  for (const change of ["selection", "backend", "reconnect"]) {
+    const status = deferred(); let calls = 0, renders = 0;
+    const scope = { S: { backend: "http://a", backendEpoch: 1, step: 6, evalTask: "trained" }, api: async () => { calls++; return calls === 1 ? { id: "old-job" } : status.promise; }, render: () => renders++, sleep: async () => {} };
+    scope.pollJob = callback("async function pollJob(", "function setConnected(", scope, "pollJob");
+    const evaluate = callback("async function evaluateCheckpoint(", "/* ---------------------------------------------------------------- summary + config */", scope, "evaluateCheckpoint");
+    const old = evaluate("old-run", "old.onnx", 64); await tick();
+    if (change === "backend") scope.S.backend = "http://b";
+    if (change === "reconnect") scope.S.backendEpoch++;
+    scope.S.evalJob = { run: "new-run", checkpoint: "new.onnx" };
+    status.resolve({ status: "running" }); await old;
+    assert.equal(calls, 2); assert.equal(renders, 1); assert.equal(scope.S.evalJob.run, "new-run");
+    assert.equal(scope.S.evalJob.result, undefined);
+  }
+});
+
+test("evaluation selectors clear the old busy/result state so the new selection can be evaluated", () => {
+  let renders = 0;
+  const handlers = {}, runSel = { value: "new-run", addEventListener: (name, fn) => { handlers.run = fn; } };
+  const ckSel = { value: "new.onnx", addEventListener: (name, fn) => { handlers.checkpoint = fn; } };
+  const scope = { S: {}, ev: { run: "old", busy: true, result: {}, episodes: 256 }, runSel, ckSel, render: () => renders++, ws: { querySelector: () => ({ addEventListener: (name, fn) => { handlers.task = fn; } }) } };
+  callback('runSel.addEventListener("change"', 'if (ws.querySelector("#ev-open"))', scope, "null");
+  for (const kind of ["run", "checkpoint", "task"]) {
+    const before = renders;
+    scope.S.evalJob = scope.ev;
+    handlers[kind]({ target: { value: "editor" } });
+    assert.equal(scope.S.evalJob.run, "new-run"); assert.equal(scope.S.evalJob.busy, undefined);
+    assert.equal(scope.S.evalJob.result, undefined); assert.equal(scope.S.evalJob.episodes, 256);
+    assert.equal(renders, before + 1);
+  }
+});
+
+test("a backend switch during evaluation startup does not poll its old job on the new backend", async () => {
+  const started = deferred(), scope = { S: { backend: "http://a", step: 6, evalTask: "trained" }, api: () => started.promise, render() {}, pollJob() { throw new Error("polled an old job"); } };
+  const pending = callback("async function evaluateCheckpoint(", "/* ---------------------------------------------------------------- summary + config */", scope, "evaluateCheckpoint")("old", "old.onnx", 64);
+  scope.S.backend = "http://b"; scope.S.evalJob = null;
+  started.resolve({ id: "old-job" }); await pending;
+  assert.equal(scope.S.evalJob, null);
+});
+
+test("W&B login status from a previous backend cannot replace the current status", async () => {
+  const pending = deferred(), scope = { S: { backend: "http://a", step: 0 }, api: () => pending.promise, renderSummary() { throw new Error("stale summary"); } };
+  const old = callback("async function loadWandb()", "function wandbHtml()", scope, "loadWandb")();
+  scope.S.backend = "http://b"; scope.S.wandb = { entity: "current" };
+  pending.resolve({ entity: "old" }); await old;
+  assert.equal(scope.S.wandb.entity, "current");
+});
+
+function wandbScope(api) {
+  const elements = new Map(), counts = { renders: 0, saves: 0, closes: 0 };
+  const scope = {
+    S: { backend: "http://a", backendEpoch: 1, step: 0, wb: { enabled: false, entity: "original" } }, api,
+    $: (id) => { if (!elements.has(id)) elements.set(id, { value: "", textContent: "", checked: false, showModal() {}, close: () => counts.closes++ }); return elements.get(id); },
+    render: () => counts.renders++, renderSummary() {}, saveWb: () => counts.saves++,
+  };
+  const open = callback("function openWandb()", "/* ---------------------------------------------------------------- 6 run */", scope, "openWandb");
+  scope.openWandb = open;
+  scope.login = () => { open(); scope.$("wandb-key").value = "test-key"; return scope.$("wandb-go").onclick(); };
+  callback("function bindWandb(", "function openWandb()", scope, "bindWandb")({ querySelectorAll: () => [], querySelector: (selector) => selector === "[data-wb-forget]" ? { addEventListener: (name, fn) => { scope.logout = fn; } } : null });
+  return { scope, counts };
+}
+
+test("W&B login/logout completions and errors respect backend, epoch and request ownership", async () => {
+  for (const action of ["login", "logout"]) for (const change of ["backend", "epoch", "request"]) for (const failure of [false, true]) {
+    const pending = deferred(), { scope, counts } = wandbScope(() => pending.promise);
+    const old = scope[action]();
+    if (change === "backend") scope.S.backend = "http://b";
+    if (change === "epoch") scope.S.backendEpoch++;
+    if (change === "request") scope.S.wandbRequest = {};
+    const status = (scope.S.wandb = { entity: "current" });
+    Object.assign(scope.S.wb, { entity: "current", enabled: false });
+    scope.$("wandb-key").value = "new form key"; scope.$("wandb-status").textContent = "current form";
+    if (failure) pending.reject(new Error("old backend error")); else pending.resolve({ entity: "old" });
+    await old;
+    assert.equal(scope.S.wandb, status, `${action}/${change}/${failure}`);
+    assert.equal(scope.S.wb.entity, "current"); assert.equal(scope.S.wb.enabled, false);
+    assert.equal(scope.$("wandb-key").value, "new form key"); assert.equal(scope.$("wandb-status").textContent, "current form");
+    assert.deepEqual(counts, { renders: 0, saves: 0, closes: 0 });
+  }
+});
+
+test("the current W&B login and logout still update the account and controls", async () => {
+  const { scope, counts } = wandbScope(async (path, options) => options.method === "POST" ? { connected: true, entity: "new-team" } : { connected: false });
+  await scope.login();
+  assert.equal(scope.S.wandb.entity, "new-team"); assert.equal(scope.S.wb.entity, "new-team"); assert.equal(scope.S.wb.enabled, true);
+  assert.equal(scope.$("wandb-key").value, ""); assert.deepEqual(counts, { renders: 1, saves: 1, closes: 1 });
+  await scope.logout(); assert.equal(scope.S.wandb.connected, false); assert.equal(counts.renders, 2);
+});
+
+test("new W&B mutations supersede older status and login requests on the same backend", async () => {
+  const status = deferred(), login = deferred();
+  const { scope, counts } = wandbScope((path, options = {}) => options.method === "POST" ? login.promise : options.method === "DELETE" ? Promise.resolve({ connected: false }) : status.promise);
+  const oldStatus = callback("async function loadWandb()", "function wandbHtml()", scope, "loadWandb")();
+  const oldLogin = scope.login();
+  await scope.logout();
+  login.resolve({ connected: true, entity: "old-team" }); await oldLogin;
+  status.resolve({ connected: true, entity: "stale-team" }); await oldStatus;
+  assert.equal(scope.S.wandb.connected, false); assert.equal(scope.S.wb.entity, "original");
+  assert.deepEqual(counts, { renders: 1, saves: 0, closes: 0 });
+});
+
+test("a demo training timer stops when compute replaces its run", () => {
+  let next;
+  const scope = { S: { backend: null, step: 0, rl: { steps: 100, envs: 8 }, bm: { bm_model: "arm" } }, MODELS: [{ id: "arm", name: "Arm" }], liveTargets: () => [target()], render() {}, setTimeout: (fn) => { next = fn; } };
+  callback("function startRun()", "async function startBackendRun()", scope, "startRun")();
+  scope.S.backend = "http://backend"; scope.S.run = { active: true, id: "real-run" };
+  assert.doesNotThrow(() => next());
+  assert.equal(scope.S.run.t, undefined); assert.equal(scope.S.run.id, "real-run");
 });
 
 test("simulation HTTP failures report the failing asset rather than parsing an error response", async () => {
@@ -399,6 +570,80 @@ test("all shipped presets pass typed import and more than ten targets survive a 
   scope.fromPreset(roundTrip);
   assert.equal(scope.S.targets.length, 21);
   assert.equal(scope.S.targets[20].x[1], 0.31);
+});
+
+test("pasting settings gives every target and clipboard independent geometry arrays", () => {
+  const scope = codecScope();
+  const copied = { ...target(), type: "Button", bw: [0.04, 0.12], bh: [0.03, 0.09], bt: [0.005, 0.01], euler: [0.4, -0.7, 0.2], quat: [0, 0, 0, 1] };
+  Object.assign(scope.S, { clip: structuredClone(copied), targets: [target(), { ...target(), disabled: true }] });
+  scope.render = () => {};
+  const paste = callback("function pasteInto(", '// "Part of the task"', scope, "pasteInto");
+  paste(0); paste(1);
+  for (const key of ["x", "y", "z", "size", "bw", "bh", "bt", "euler", "quat"]) {
+    scope.S.targets[1][key][0] += 1;
+    assert.deepEqual(scope.S.targets[0][key], copied[key]);
+    assert.deepEqual(scope.S.clip[key], copied[key]);
+  }
+  assert.equal(scope.S.targets[1].disabled, true);
+});
+
+test("button imports retain randomized dimensions and Euler-only Gradio rotations through edits", () => {
+  const scope = codecScope(), original = scope.toPreset();
+  original.target_1.radio = "Box";
+  Object.assign(original.target_1.box, { box_size_x: [0.04, 0.12], box_size_y: [0.03, 0.09], euler: [0.4, -0.7, 0.2] });
+  for (const depth of [0.006, [0.004, 0.01]]) {
+    original.target_1.box.box_thickness = depth;
+    scope.fromPreset(original);
+    scope.S.targets[0].x[0] += 0.01; // an unrelated live position edit leaves the hidden geometry intact
+    scope.S.targets[0].x[1] += 0.01;
+    for (let pass = 0; pass < 2; pass++) {
+      const saved = scope.toPreset(), box = saved.target_1.box;
+      for (const key of ["box_size_x", "box_size_y", "box_thickness", "euler"]) assert.deepEqual(JSON.parse(JSON.stringify(box[key])), original.target_1.box[key]);
+      assert.ok(Math.abs(box.orientation_angle - 0.7 * 180 / Math.PI) < 1e-12);
+      scope.fromPreset(saved);
+    }
+    const s = scene(), t = scope.S.targets[0]; s.setTargets([t], null);
+    const marker = s.targets[0].userData.marker;
+    assert.ok(Math.abs(marker.geometry.parameters.width - 0.08) < 1e-12);
+    assert.ok(Math.abs(marker.geometry.parameters.height - 0.06) < 1e-12);
+    assert.ok(Math.abs(marker.geometry.parameters.depth - (Array.isArray(depth) ? 0.007 : depth)) < 1e-12);
+    assert.ok(1 - Math.abs(marker.quaternion.dot(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, -0.7, 0.2, "XYZ")))) < 1e-12);
+  }
+});
+
+test("angle inputs update quaternion-backed buttons while retaining X/Z rotation and size ranges", () => {
+  const scope = codecScope(), preset = scope.toPreset(), original = [0.4, -0.7, 0.2];
+  preset.target_1.radio = "Box";
+  Object.assign(preset.target_1.box, { quat: new THREE.Quaternion().setFromEuler(new THREE.Euler(...original, "XYZ")).toArray(), box_thickness: [0.004, 0.01] });
+  scope.fromPreset(preset);
+  let changed, redraws = 0;
+  const input = { dataset: { bind: "t.0.angle" }, type: "number", value: "30", addEventListener: (type, fn) => { changed = fn; } };
+  scope.syncScene = () => redraws++; scope.renderSummary = () => {};
+  callback("function bindInputs(", "/* ---------------------------------------------------------------- 1 body */", scope, "bindInputs")({ querySelectorAll: () => [input] });
+  changed();
+  const t = scope.S.targets[0], saved = scope.toPreset().target_1.box;
+  assert.equal(redraws, 1); assert.equal(t.turned, true); assert.equal(t.quat, undefined);
+  assert.ok(Math.abs(saved.euler[0] - original[0]) < 1e-12); assert.ok(Math.abs(saved.euler[1] + Math.PI / 6) < 1e-12); assert.ok(Math.abs(saved.euler[2] - original[2]) < 1e-12);
+  assert.deepEqual(Array.from(saved.box_thickness), [0.004, 0.01]);
+  const expected = new THREE.Quaternion().setFromEuler(new THREE.Euler(original[0], -Math.PI / 6, original[2], "XYZ"));
+  assert.ok(1 - Math.abs(buttonQuat(t).dot(expected)) < 1e-12);
+  scope.S.row = { i: 0, key: "angle" }; scope.S.rowClip = { kind: "angle", value: 45 }; scope.rowKind = (key) => key; scope.render = () => {};
+  assert.equal(callback("function pasteRow()", "function copyTarget(", scope, "pasteRow")(), true);
+  assert.ok(Math.abs(scope.toPreset().target_1.box.euler[1] + Math.PI / 4) < 1e-12);
+  const s = scene(); s.setTargets([t], null); s.gizmo.object = s.targets[0].userData.marker;
+  s.gizmo.object.quaternion.setFromEuler(new THREE.Euler(0.2, -0.3, 0.4, "XYZ"));
+  s._onGizmo();
+  assert.equal(t.euler, undefined); assert.ok(Math.abs(t.angle - 0.3 * 180 / Math.PI) < 0.01);
+});
+
+test("quaternion imports agree with Three.js across general and near-gimbal rotations", () => {
+  const scope = codecScope();
+  for (const pitch of [-Math.PI / 2, -1.2, 0, 0.8, Math.PI / 2]) for (const roll of [-2, 0, 1.7]) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(roll, pitch, 0.6, "XYZ"));
+    const angles = scope.buttonEuler({ quat: q.toArray() });
+    const actual = new THREE.Quaternion().setFromEuler(new THREE.Euler(...angles, "XYZ"));
+    assert.ok(1 - Math.abs(q.dot(actual)) < 1e-12);
+  }
 });
 
 test("non-editor overrides survive edits, repeated imports and partial preset resets", () => {

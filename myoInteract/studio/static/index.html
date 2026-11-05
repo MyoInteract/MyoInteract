@@ -598,20 +598,32 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     return data;
   }
   const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
-  async function pollJob(id, onUpdate) {
-    for (;;) {
+  async function pollJob(id, onUpdate, current = () => true) {
+    while (current()) {
       const j = await api("/api/jobs/" + id);
+      if (!current()) return null;
       if (onUpdate) onUpdate(j);
       if (j.status !== "running") return j;
       await sleep(2000);
     }
+    return null;
   }
   function setConnected(url, label) {
-    if (S.backend !== url) S.run = null; // monitoring belongs to the backend that started the run
+    if (S.backend !== url) {
+      // Jobs, viewers and their pending responses belong to the backend that created them.
+      S.backendEpoch = (S.backendEpoch || 0) + 1;
+      closeLive();
+      stopSim();
+      clearInterval(S.replayTimer);
+      clearTimeout(S.evalPoll);
+      Object.assign(S, { run: null, preview: null, viewer: null, viewerClosed: false, liveStatus: "", mus: null, evalJob: null, runs: [], runsRequest: null, runsFetchedAt: 0, replayTimer: null, wandb: null, wandbRequest: null, presets: [] });
+      renderPresetList();
+    }
     S.backend = url;
     $("conn-pill").classList.add("on");
     $("conn-text").textContent = label;
-    api("/api/presets").then((ps) => { if (S.backend === url) { S.presets = ps; renderPresetList(); } }).catch(() => {});
+    const epoch = S.backendEpoch;
+    api("/api/presets").then((ps) => { if (S.backend === url && S.backendEpoch === epoch) { S.presets = ps; renderPresetList(); } }).catch(() => {});
     loadWandb();
   }
   const fmt = (n) => n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + " M" : n >= 1e3 ? (n / 1e3).toFixed(0) + " k" : String(n);
@@ -679,9 +691,16 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
             const other = root.querySelector(`[data-bind="${el.dataset.bind}"][data-sub="${+sub === 0 ? 1 : 0}"]`);
             if (other) other.value = obj[prop][+sub];
           }
+        } else if (group === "t" && prop === "angle") {
+          const euler = buttonEuler(obj);
+          obj[prop] = read();
+          euler[1] = -obj[prop] * Math.PI / 180;
+          obj.euler = euler;
+          delete obj.quat;
+          obj.turned = true;
         } else obj[prop] = read();
         if (el.dataset.live) { const o = root.querySelector(`#${el.dataset.live}`); if (o) o.textContent = el.value; }
-        if (el.dataset.redraw) syncScene();
+        if (el.dataset.redraw || (group === "t" && prop === "angle")) syncScene();
         renderSummary();
       });
     });
@@ -736,6 +755,13 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     const t = S.targets[S.row.i];
     if (!S.rowClip || S.rowClip.kind !== rowKind(S.row.key) || !(S.row.key in t)) return false;
     t[S.row.key] = structuredClone(S.rowClip.value);
+    if (S.row.key === "angle") {
+      const euler = buttonEuler(t);
+      euler[1] = -t.angle * Math.PI / 180;
+      t.euler = euler;
+      delete t.quat;
+      t.turned = true;
+    }
     if (rowKind(S.row.key) === "position") delete t.screenEl;  // moved by hand: no longer pinned to the screen
     render();
     return true;
@@ -744,7 +770,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   function pasteInto(i) {
     if (!S.clip) return;
     const keep = S.targets[i];
-    S.targets[i] = { ...S.clip, color: keep.color, ...(keep.disabled ? { disabled: true } : {}) };
+    S.targets[i] = { ...structuredClone(S.clip), color: keep.color, ...(keep.disabled ? { disabled: true } : {}) };
     S.sel = i;
     render();
   }
@@ -938,12 +964,11 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     render();
   }
   const BUTTON_ON_SCREEN_M = 0.004;  // thickness of a button made from a screen element
-  let quatToEuler = null;            // from scene.js, once it is loaded
   // A button made from a screen element: the element's size, flat on the screen, facing as the screen does.
   function screenButton(el) {
     const { pos, w, h, quat } = SC.screenElement(el, BUTTON_ON_SCREEN_M / 2);
     const mm = (v) => Math.round(Math.max(0.005, v) * 1000) / 1000;
-    return { x: [pos[0], pos[0]], y: [pos[1], pos[1]], z: [pos[2], pos[2]], bw: mm(w), bh: mm(h), bt: BUTTON_ON_SCREEN_M, quat };
+    return { x: [pos[0], pos[0]], y: [pos[1], pos[1]], z: [pos[2], pos[2]], bw: mm(w), bh: mm(h), bt: BUTTON_ON_SCREEN_M, quat, angle: -buttonEuler({ quat })[1] * 180 / Math.PI };
   }
   function screenTargets(type) {
     if (!SC || !SC.screen) return;
@@ -962,7 +987,12 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     S.targets.forEach((t) => {
       const el = t.screenEl != null && S.screen.elements[t.screenEl];
       if (!el) return;
-      if (t.type === "Button") { const keep = t.turned ? { quat: t.quat } : {}; Object.assign(t, screenButton(el), keep); return; }
+      if (t.type === "Button") {
+        const keep = t.turned ? { quat: t.quat, euler: t.euler, angle: t.angle } : {};
+        delete t.euler;
+        Object.assign(t, screenButton(el), keep);
+        return;
+      }
       const { pos } = SC.screenElement(el);
       t.x = [pos[0], pos[0]]; t.y = [pos[1], pos[1]]; t.z = [pos[2], pos[2]];
     });
@@ -999,7 +1029,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     SC.addEventListener("rotate", (e) => {  // a button turned by hand keeps that orientation when the screen moves
       S.targets[e.detail.i].turned = true;
       sceneKeys.targets = JSON.stringify(S.targets);
-      saveDraft();
+      syncTargetInputs(e.detail.i);
     });
     SC.addEventListener("add", (e) => {
       const p = e.detail.pos, last = S.targets[S.targets.length - 1];
@@ -1020,7 +1050,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     renderSceneBar();
   }
   // Loaded as a module from the main script, so a host that blocks it shows why instead of hanging.
-  import("./static/scene.js").then((m) => { window.StudioScene = m.StudioScene; quatToEuler = m.quatToEuler; initScene(); }).catch((e) => {
+  import("./static/scene.js").then((m) => { window.StudioScene = m.StudioScene; initScene(); }).catch((e) => {
     const msg = $("stage-msg");
     if (msg) msg.textContent = `The 3D view could not load (${e.message}). Everything else works; edit targets with the numbers.`;
   });
@@ -1194,15 +1224,16 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     const key = JSON.stringify(body);
     if (S.viewer && S.viewer.key === key && !S.viewer.error) { S.viewer.step = step; syncScene(); renderSceneBar(); return; }
     closeLive();
-    S.viewer = { key, step, label, name, kind: body.kind, busy: true, t0: Date.now() };
+    const mine = (S.viewer = { key, step, label, name, kind: body.kind, busy: true, t0: Date.now() }), backend = S.backend, epoch = S.backendEpoch;
     renderSceneBar();
-    const current = () => S.viewer && S.viewer.key === key;
+    const current = () => S.viewer === mine && S.backend === backend && S.backendEpoch === epoch;
     try {
       let job = await api("/api/viewer", { method: "POST", body });
       while (!job.result) {
         if (job.status === "failed") throw new Error(job.log.split("\n").slice(-3).join(" ") || "the live view did not start");
         if (!current()) return;  // replaced by another view meanwhile
         await sleep(1000);
+        if (!current()) return;
         renderSceneBar();
         job = await api("/api/jobs/" + job.id);
       }
@@ -1213,11 +1244,13 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     renderSceneBar();
   }
   function connectLive(key, tries = 0) {
+    const backend = S.backend, epoch = S.backendEpoch;
     const base = (S.backend || location.origin).replace(/^http/, "ws");
     const ws = new WebSocket(`${base}/viewer/stream${S.token ? "?token=" + encodeURIComponent(S.token) : ""}`);
     ws.binaryType = "arraybuffer";
     S.liveSocket = ws;
     ws.onmessage = (ev) => {
+      if (S.liveSocket !== ws) return;
       if (typeof ev.data === "string") {
         const m = JSON.parse(ev.data);
         if (m.type === "hello") { S.live = m; S.liveStatus = m.status; syncScene(); }
@@ -1233,7 +1266,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       S.live = null;
       syncScene();
       renderSceneBar();
-      if (tries < 5) setTimeout(() => { if (S.viewer && S.viewer.key === key && liveWanted() && !S.liveSocket) connectLive(key, tries + 1); }, 2000);
+      if (tries < 5) setTimeout(() => { if (S.backend === backend && S.backendEpoch === epoch && S.viewer && S.viewer.key === key && liveWanted() && !S.liveSocket) connectLive(key, tries + 1); }, 2000);
     };
   }
   /* ---------------------------------------------------------------- muscle activity of a playing policy */
@@ -1542,8 +1575,12 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   const wandbEntity = () => (S.wandb && (S.wandb.teams || []).includes(S.wb.entity) ? S.wb.entity : S.wandb && S.wandb.entity);
   const wandbTarget = () => `${wandbEntity()}/${S.wb.project}`;
   async function loadWandb() {
+    const request = (S.wandbRequest = {}), backend = S.backend, epoch = S.backendEpoch;
     S.wandb = null;
-    try { S.wandb = await api("/api/wandb"); } catch (e) { S.wandb = { error: e.message }; }
+    let status;
+    try { status = await api("/api/wandb"); } catch (e) { status = { error: e.message }; }
+    if (S.wandbRequest !== request || S.backend !== backend || S.backendEpoch !== epoch) return;
+    S.wandb = status;
     renderSummary();
     if (S.step === 4 || S.step === 5) render();
   }
@@ -1567,7 +1604,14 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   }
   function bindWandb(ws) {
     ws.querySelectorAll("[data-wb-connect]").forEach((b) => b.addEventListener("click", openWandb));
-    ws.querySelector("[data-wb-forget]")?.addEventListener("click", async () => { try { S.wandb = await api("/api/wandb", { method: "DELETE" }); } catch (e) { S.wandb = { error: e.message }; } render(); });
+    ws.querySelector("[data-wb-forget]")?.addEventListener("click", async () => {
+      const request = (S.wandbRequest = {}), backend = S.backend, epoch = S.backendEpoch;
+      let status;
+      try { status = await api("/api/wandb", { method: "DELETE" }); } catch (e) { status = { error: e.message }; }
+      if (S.wandbRequest !== request || S.backend !== backend || S.backendEpoch !== epoch) return;
+      S.wandb = status;
+      render();
+    });
     ws.querySelector("#wb-on")?.addEventListener("change", (e) => { S.wb.enabled = e.target.checked; saveWb(); render(); });
     ws.querySelector("#wb-entity")?.addEventListener("change", (e) => { S.wb.entity = e.target.value; saveWb(); renderSummary(); });
     ws.querySelector("#wb-project")?.addEventListener("change", (e) => {
@@ -1584,15 +1628,19 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     $("wandb-go").onclick = async () => {
       const key = $("wandb-key").value.trim();
       if (!key) { $("wandb-status").textContent = "Paste your API key first."; return; }
+      const request = (S.wandbRequest = {}), backend = S.backend, epoch = S.backendEpoch;
+      const current = () => S.wandbRequest === request && S.backend === backend && S.backendEpoch === epoch;
       $("wandb-status").textContent = "Checking the key with W&B…";
       try {
-        S.wandb = await api("/api/wandb", { method: "POST", body: { api_key: key, remember: $("wandb-remember").checked } });
+        const status = await api("/api/wandb", { method: "POST", body: { api_key: key, remember: $("wandb-remember").checked } });
+        if (!current()) return;
+        S.wandb = status;
         Object.assign(S.wb, { enabled: true, entity: S.wandb.entity });
         saveWb();
         $("wandb-key").value = "";
         dlg.close();
         render();
-      } catch (e) { $("wandb-status").textContent = e.message; }
+      } catch (e) { if (current()) $("wandb-status").textContent = e.message; }
     };
     dlg.showModal();
   }
@@ -1648,10 +1696,10 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   function startRun() {
     if (S.run && S.run.active) return;
     const total = S.rl.steps;
-    S.run = { active: true, t: 0, pts: [], log: [`[demo] configuration accepted · ${MODELS.find((m) => m.id === S.bm.bm_model).name} · ${liveTargets().length} target(s) · ${S.rl.envs} envs`] };
+    const mine = (S.run = { active: true, t: 0, pts: [], log: [`[demo] configuration accepted · ${MODELS.find((m) => m.id === S.bm.bm_model).name} · ${liveTargets().length} target(s) · ${S.rl.envs} envs`] }), backend = S.backend;
     render();
     const tick = () => {
-      if (!S.run.active) return;
+      if (S.run !== mine || S.backend !== backend || !mine.active) return;
       S.run.t = Math.min(total, S.run.t + total / 60);
       const x = S.run.t / total;
       const succ = Math.max(0, Math.min(0.97, 1.05 / (1 + Math.exp(-9 * (x - 0.35))) - 0.05 + (Math.random() - 0.5) * 0.03));
@@ -1870,8 +1918,11 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   async function loadRuns(force) {
     if (!force && S.runsFetchedAt && Date.now() - S.runsFetchedAt < 3000) return;
     S.runsFetchedAt = Date.now();
-    try { S.runs = await api("/api/runs"); } catch (e) { S.evalJob = { ...(S.evalJob || {}), error: e.message }; }
-    if (S.step === 6) render();
+    const request = (S.runsRequest = {}), backend = S.backend, epoch = S.backendEpoch;
+    const current = () => S.runsRequest === request && S.backend === backend && S.backendEpoch === epoch;
+    try { const runs = await api("/api/runs"); if (current()) S.runs = runs; }
+    catch (e) { if (current()) S.evalJob = { ...(S.evalJob || {}), error: e.message }; }
+    if (current() && S.step === 6) render();
   }
   function renderEvaluateBackend(ws) {
     const ev = S.evalJob || {};
@@ -1909,13 +1960,12 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       ${res && res.video ? `<video class="media" src="${esc(S.backend)}/api/jobs/${encodeURIComponent(ev.id)}/files/${encodeURIComponent(res.video)}" controls autoplay muted loop playsinline></video>` : ""}`));
     const runSel = ws.querySelector("#ev-run"), ckSel = ws.querySelector("#ev-ckpt");
     bindEvalTiles(ws, res, resTargets);
-    runSel.addEventListener("change", () => { S.evalJob = { ...ev, run: runSel.value, checkpoint: null }; S.viewerClosed = false; render(); });
-    ckSel.addEventListener("change", () => { S.evalJob = { ...ev, run: runSel.value, checkpoint: ckSel.value }; });
-    ws.querySelector("#ev-task").addEventListener("change", (e) => { S.evalTask = e.target.value; S.viewerClosed = false; render(); });
+    runSel.addEventListener("change", () => { S.evalJob = { run: runSel.value, checkpoint: null, episodes: ev.episodes }; S.viewerClosed = false; render(); });
+    ckSel.addEventListener("change", () => { S.evalJob = { run: runSel.value, checkpoint: ckSel.value, episodes: ev.episodes }; S.viewerClosed = false; render(); });
+    ws.querySelector("#ev-task").addEventListener("change", (e) => { S.evalTask = e.target.value; S.evalJob = { run: runSel.value, checkpoint: ckSel.value, episodes: ev.episodes }; S.viewerClosed = false; render(); });
     if (ws.querySelector("#ev-open")) ws.querySelector("#ev-open").addEventListener("click", (e) => { e.preventDefault(); openExampleTask(run.example.name).catch((err) => { S.evalJob = { ...ev, error: err.message }; render(); }); });
     ws.querySelector("#ev-refresh").addEventListener("click", (e) => { e.preventDefault(); loadRuns(true); });
     ws.querySelectorAll("[data-go-step]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); go(+a.dataset.goStep); }));
-    ckSel.addEventListener("change", () => { S.viewerClosed = false; showRunInViewer(run, ckSel.value); });
     ws.querySelector("#ev-viser").addEventListener("click", (e) => {
       e.preventDefault();
       if (!run) return;
@@ -1944,17 +1994,31 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   }
   async function evaluateCheckpoint(run, checkpoint, episodes) {
     const ood = S.evalTask === "editor", label = `${run} · ${checkpoint}${ood ? " · setup in the editor" : ""}`;
-    S.evalJob = { run, checkpoint, episodes, busy: true };
+    const mine = (S.evalJob = { run, checkpoint, episodes, busy: true }), backend = S.backend, epoch = S.backendEpoch;
+    const current = () => S.evalJob === mine && S.backend === backend && S.backendEpoch === epoch;
     render();
     try {
-      const job = await pollJob((await api("/api/evaluations", { method: "POST", body: { run, checkpoint, episodes, video_seconds: 0, ...(ood ? { preset: toPreset() } : {}) } })).id);
+      const started = await api("/api/evaluations", { method: "POST", body: { run, checkpoint, episodes, video_seconds: 0, ...(ood ? { preset: toPreset() } : {}) } });
+      if (!current()) return;
+      const job = await pollJob(started.id, null, current);
+      if (!current()) return;
       if (job.status !== "done") throw new Error(job.log.split("\n").slice(-3).join(" ") || "evaluation failed");
       S.evalJob = { run, checkpoint, episodes, id: job.id, result: job.result, label, ood };
-    } catch (e) { S.evalJob = { run, checkpoint, episodes, error: e.message }; }
+    } catch (e) { if (!current()) return; S.evalJob = { run, checkpoint, episodes, error: e.message }; }
     if (S.step === 6) render();
   }
 
   /* ---------------------------------------------------------------- summary + config */
+  function buttonEuler(target) {
+    if (target.euler) return [...target.euler];
+    if (!target.quat) return [0, -(target.angle ?? 90) * Math.PI / 180, 0];
+    // XYZ Euler angles, matching scene.js/Three.js; available before the 3D module loads.
+    const [x, y, z, w] = target.quat, m13 = 2 * (x * z + y * w);
+    const pitch = Math.asin(Math.min(1, Math.max(-1, m13)));
+    return Math.abs(m13) < 0.9999999
+      ? [Math.atan2(2 * (x * w - y * z), 1 - 2 * (x * x + y * y)), pitch, Math.atan2(2 * (z * w - x * y), 1 - 2 * (y * y + z * z))]
+      : [Math.atan2(2 * (y * z + x * w), 1 - 2 * (x * x + z * z)), pitch, 0];
+  }
   function rewardOverride(override) {
     const m = override.match(/^(?:\+\+?)?env\.task_config\.weighted_reward_keys\.(\w+)=([-+\d.eE]+)$/);
     return m && EXTRA_REWARDS.includes(m[1]) ? m : null;
@@ -1962,12 +2026,13 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   function toPreset() {
     const tgt = {};
     const on = liveTargets();
+    const dimensions = (value, fallback) => Array.isArray(value) ? [...value] : [value ?? fallback, value ?? fallback];
     for (let i = 0; i < Math.max(10, on.length); i++) {
       const t = on[i] || on[0];
       const rgb = hexToRgba(t.color);
       tgt[`target_${i + 1}`] = {
         radio: t.type === "Button" ? "Box" : "Sphere",
-        box: { box_position_x: [...t.x], box_position_y: [...t.y], box_position_z: [...t.z], box_size_x: [t.bw || 0.05, t.bw || 0.05], box_size_y: [t.bh || 0.05, t.bh || 0.05], min_touch_force: t.force, orientation_angle: t.angle, ...(t.quat && quatToEuler ? { euler: quatToEuler(t.quat), quat: t.quat } : {}), ...(t.bt ? { box_thickness: t.bt } : {}), rgb },
+        box: { box_position_x: [...t.x], box_position_y: [...t.y], box_position_z: [...t.z], box_size_x: dimensions(t.bw, 0.05), box_size_y: dimensions(t.bh, 0.05), min_touch_force: t.force, orientation_angle: t.angle, ...((t.euler || t.quat) ? { euler: buttonEuler(t), ...(t.quat ? { quat: [...t.quat] } : {}) } : {}), ...(t.bt !== undefined ? { box_thickness: Array.isArray(t.bt) ? [...t.bt] : t.bt } : {}), rgb },
         sphere: { x_range: [...t.x], y_range: [...t.y], z_range: [...t.z], size_range: [...t.size], dwell_duration: t.dwell, rgb },
       };
     }
@@ -2038,8 +2103,10 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       dwell: presetNumber(t.dwell === undefined ? 0.25 : t.dwell, `${path}.dwell`, 0), force: presetNumber(t.force === undefined ? 1 : t.force, `${path}.force`, 0),
       angle: presetNumber(t.angle === undefined ? 90 : t.angle, `${path}.angle`), color,
     };
-    for (const k of ["bw", "bh", "bt"]) if (t[k] !== undefined) out[k] = presetNumber(t[k], `${path}.${k}`, Number.MIN_VALUE);
+    for (const k of ["bw", "bh", "bt"]) if (t[k] !== undefined) out[k] = Array.isArray(t[k]) ? presetRange(t[k], `${path}.${k}`, true) : presetNumber(t[k], `${path}.${k}`, Number.MIN_VALUE);
     if (t.quat !== undefined) out.quat = presetQuaternion(t.quat, `${path}.quat`);
+    if (t.euler !== undefined) out.euler = presetVector(t.euler, 3, `${path}.euler`);
+    if (out.euler || out.quat) out.angle = -buttonEuler(out)[1] * 180 / Math.PI;
     for (const k of ["disabled", "turned"]) if (t[k] !== undefined) out[k] = presetBoolean(t[k], `${path}.${k}`);
     if (t.screenEl !== undefined) out.screenEl = presetNumber(t.screenEl, `${path}.screenEl`, 0, true);
     return out;
@@ -2123,9 +2190,10 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
           type: isBox ? "Button" : "Sphere", x: isBox ? bx.box_position_x : sp.x_range,
           y: isBox ? bx.box_position_y : sp.y_range, z: isBox ? bx.box_position_z : sp.z_range,
           size: sp.size_range, dwell: sp.dwell_duration, force: bx.min_touch_force, angle: bx.orientation_angle,
-          ...(isBox && bx.box_size_x !== undefined ? { bw: presetRange(bx.box_size_x, `${path}.box.box_size_x`, true)[0] } : {}),
-          ...(isBox && bx.box_size_y !== undefined ? { bh: presetRange(bx.box_size_y, `${path}.box.box_size_y`, true)[0] } : {}),
+          ...(isBox && bx.box_size_x !== undefined ? { bw: presetRange(bx.box_size_x, `${path}.box.box_size_x`, true) } : {}),
+          ...(isBox && bx.box_size_y !== undefined ? { bh: presetRange(bx.box_size_y, `${path}.box.box_size_y`, true) } : {}),
           ...(isBox && bx.box_thickness !== undefined ? { bt: bx.box_thickness } : {}), ...(isBox && bx.quat !== undefined ? { quat: bx.quat } : {}),
+          ...(isBox && bx.euler !== undefined ? { euler: bx.euler } : {}),
           color: isBox ? bx.rgb : sp.rgb,
         }, path, i));
       }
