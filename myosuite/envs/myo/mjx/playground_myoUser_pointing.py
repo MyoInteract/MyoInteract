@@ -255,8 +255,6 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
         self.target_origin_rel = target_origin_rel
         self.ref_site = ref_site
 
-        zero = jp.zeros(1)
-        
         # Define training properties (sex might be used for fatigue model)
         self.muscle_condition = muscle_condition
         self.sex = sex
@@ -269,12 +267,10 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
         # Define signal-dependent noise
         self.sigdepnoise_type = sigdepnoise_type
         self.sigdepnoise_level = sigdepnoise_level * jp.ones(1)
-        self.sigdepnoise_acc = zero  #only used for red/Brownian noise
         
         # Define constant (i.e., signal-independent) noise
         self.constantnoise_type = constantnoise_type
         self.constantnoise_level = constantnoise_level * jp.ones(1)
-        self.constantnoise_acc = zero  #only used for red/Brownian noise
 
         self.initializeConditions()
 
@@ -355,35 +351,39 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
         self.eval_mode = False
 
     def get_ctrl(self, state: State, action: jp.ndarray, rng: jp.ndarray):
+        """Returns the controls and the updated red-noise accumulators (to be merged into state.info)."""
         new_ctrl = action.copy()
+        noise_info = {}
 
         _selected_motor_control = jp.clip(action[:self._nm], 0, 1)
         _selected_muscle_control = jp.clip(action[self._nm:], 0, 1)
 
+        # Noise is sampled independently for each muscle; red noise restarts after a reset (data.time == 0)
         if self.sigdepnoise_type is not None:
             rng, rng1 = jax.random.split(rng, 2)
-            _noise = jax.random.normal(rng1)
+            _noise = jax.random.normal(rng1, shape=_selected_muscle_control.shape)
             if self.sigdepnoise_type == "white":
                 _added_noise = self.sigdepnoise_level*_selected_muscle_control*_noise
                 _selected_muscle_control += _added_noise
             elif self.sigdepnoise_type == "whiteonly":  #only for debugging purposes
                 _selected_muscle_control = self.sigdepnoise_level*_selected_muscle_control*_noise
             elif self.sigdepnoise_type == "red":
-                # self.sigdepnoise_acc *= 1 - 0.1
-                self.sigdepnoise_acc += self.sigdepnoise_level*_selected_muscle_control*_noise
-                _selected_muscle_control += self.sigdepnoise_acc
+                _acc = jp.where(state.data.time == 0, 0.0, state.info['sigdepnoise_acc']) + self.sigdepnoise_level*_selected_muscle_control*_noise
+                noise_info['sigdepnoise_acc'] = _acc
+                _selected_muscle_control += _acc
             else:
                 raise NotImplementedError(f"{self.sigdepnoise_type}")
         if self.constantnoise_type is not None:
             rng, rng1 = jax.random.split(rng, 2)
-            _noise = jax.random.normal(rng1)
+            _noise = jax.random.normal(rng1, shape=_selected_muscle_control.shape)
             if self.constantnoise_type == "white":
                 _selected_muscle_control += self.constantnoise_level*_noise
             elif self.constantnoise_type == "whiteonly":  #only for debugging purposes
                 _selected_muscle_control = self.constantnoise_level*_noise
             elif self.constantnoise_type == "red":
-                self.constantnoise_acc += self.constantnoise_level*_noise
-                _selected_muscle_control += self.constantnoise_acc
+                _acc = jp.where(state.data.time == 0, 0.0, state.info['constantnoise_acc']) + self.constantnoise_level*_noise
+                noise_info['constantnoise_acc'] = _acc
+                _selected_muscle_control += _acc
             else:
                 raise NotImplementedError(f"{self.constantnoise_type}")
 
@@ -410,7 +410,7 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
             # Set EIP to 0
             new_ctrl = new_ctrl.at[self.EIPpos].set(0)
 
-        return new_ctrl
+        return new_ctrl, noise_info
     
     def generate_pixels(self, data, render_token=None):
         # Generates the view of the environment using the batch renderer
@@ -707,6 +707,7 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
                 'target_fail': jp.array(False),
                 'trial_idx': trial_idx,
                 'task_completed': jp.array(False),
+                **self._reset_motor_noise(),
                 }
         info['target_pos'] = self.generate_target_pos(rng, target_pos=kwargs.get("target_pos", None))
         info['target_radius'] = self.generate_target_size(rng, target_radius=kwargs.get("target_radius", None))
@@ -921,10 +922,10 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
         # Reset smoothed average of motor actuator activation
         self._motor_smooth_avg = jp.zeros((self._nm,))
 
-        # Reset accumulative noise
-        zero = jp.zeros(1)
-        self._sigdepnoise_acc = zero
-        self._constantnoise_acc = zero
+    def _reset_motor_noise(self):
+        """Zeroed red-noise accumulators (one per muscle), to be added to state.info on reset."""
+        zero = jp.zeros(len(self._muscle_actuators))
+        return {'sigdepnoise_acc': zero, 'constantnoise_acc': zero}
 
     def step(self, state: State, action: jp.ndarray) -> State:
         """Runs one timestep of the environment's dynamics."""
@@ -944,7 +945,8 @@ class PlaygroundArmPointing(mjx_env.MjxEnv):
 
         data0 = state.data
         rng, rng_ctrl = jax.random.split(rng, 2)
-        new_ctrl = self.get_ctrl(state, action, rng_ctrl)
+        new_ctrl, noise_info = self.get_ctrl(state, action, rng_ctrl)
+        state.info.update(noise_info)
         
         # step forward
         # self.last_ctrl = self.robot.step(

@@ -576,6 +576,7 @@ class MyoUserUniversal(MyoUserBase):
                 'time_in_current_phase': jp.array(0.),
                 'extra_dist': jp.array(0.),
                 'ee_pos': jp.array(data.site_xpos[self.ee_pos_id]),
+                **self._reset_motor_noise(),
                 }
         
         if add_to_info is not None:
@@ -704,7 +705,8 @@ class MyoUserUniversal(MyoUserBase):
         rng = state.info['rng']
         data0 = state.data
         rng, rng_ctrl = jax.random.split(rng, 2)
-        new_ctrl = self.get_ctrl(state, action, rng_ctrl)
+        new_ctrl, noise_info = self.get_ctrl(state, action, rng_ctrl)
+        state.info.update(noise_info)
         data = mjx_env.step(self.mjx_model, data0, new_ctrl, n_substeps=self.n_substeps)
         target_step_fns = [t.target_step for t in self.target_objs]
         state = jax.lax.switch(state.info['phase'], target_step_fns, state)

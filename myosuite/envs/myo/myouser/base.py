@@ -30,6 +30,7 @@ OmegaConf.register_new_resolver("int_divide", lambda x, y: int(x / y))
 
 @dataclass
 class NoiseParams:
+    """Motor noise on muscle controls, drawn independently per muscle; "red" is a per-episode random walk."""
     sigdepnoise_type: Union[str, None] = None
     sigdepnoise_level: float = 0.103
     constantnoise_type: Union[str, None] = None
@@ -369,7 +370,7 @@ class MyoUserBase(mjx_env.MjxEnv):
 
     @abc.abstractmethod
     def reset(self, rng, **kwargs):
-        """Reset function. Should call at least self._reset_bm_model."""
+        """Reset function. Should call at least self._reset_bm_model and add self._reset_motor_noise() to info."""
 
     @abc.abstractmethod
     def auto_reset(self, rng, info_before_reset, **kwargs):
@@ -417,12 +418,20 @@ class MyoUserBase(mjx_env.MjxEnv):
         if self.muscle_condition == "fatigue":
             self.muscle_fatigue.reset()
 
-        # Reset accumulative noise
-        zero = jp.zeros(1)
-        self._sigdepnoise_acc = zero
-        self._constantnoise_acc = zero
-
         return data
+
+    def _reset_motor_noise(self) -> Dict[str, jp.ndarray]:
+        """Zeroed red-noise accumulators (one per muscle), to be added to state.info on reset."""
+        zero = jp.zeros(len(self._muscle_actuators))
+        return {"sigdepnoise_acc": zero, "constantnoise_acc": zero}
+
+    def _red_noise_acc(self, state: State, key: str) -> jp.ndarray:
+        """Red-noise accumulator from state.info, restarted on the first step of an episode.
+
+        Auto-reset wrappers restore `data` but keep the pre-reset `info`, and data.time is
+        zero only right after a reset.
+        """
+        return jp.where(state.data.time == 0, 0.0, state.info[key])
 
     def _reset_zero(self, rng):
         """Resets the biomechanical model."""
@@ -569,8 +578,10 @@ class MyoUserBase(mjx_env.MjxEnv):
         
         return reset_qpos_new
     
-    def get_ctrl(self, state: State, action: jp.ndarray, rng: jp.ndarray):
+    def get_ctrl(self, state: State, action: jp.ndarray, rng: jp.ndarray) -> Tuple[jp.ndarray, Dict[str, jp.ndarray]]:
+        """Returns the controls and the updated red-noise accumulators (to be merged into state.info)."""
         new_ctrl = action.copy()
+        noise_info = {}
         
         if self.control_type == "relative":
             _selected_motor_control = jp.clip(state.data.act[self._motor_actuators] + action[:self._nm], 0, 1)
@@ -581,31 +592,33 @@ class MyoUserBase(mjx_env.MjxEnv):
         else:
             raise NotImplementedError(f"Control type {self.control_type} is not valid; valid types are 'relative' and 'default'")
 
+        # Noise is sampled independently for each muscle
         if self.muscle_noise_params.sigdepnoise_type is not None:
             rng, rng1 = jax.random.split(rng, 2)
-            _noise = jax.random.normal(rng1)
+            _noise = jax.random.normal(rng1, shape=_selected_muscle_control.shape)
             if self.muscle_noise_params.sigdepnoise_type == "white":
                 _added_noise = self.muscle_noise_params.sigdepnoise_level*_selected_muscle_control*_noise
                 _selected_muscle_control += _added_noise
             elif self.muscle_noise_params.sigdepnoise_type == "whiteonly":  #only for debugging purposes
                 _selected_muscle_control = self.muscle_noise_params.sigdepnoise_level*_selected_muscle_control*_noise
             elif self.muscle_noise_params.sigdepnoise_type == "red":
-                # self._sigdepnoise_acc *= 1 - 0.1
-                self._sigdepnoise_acc += self.muscle_noise_params.sigdepnoise_level*_selected_muscle_control*_noise
-                _selected_muscle_control += self._sigdepnoise_acc
+                _acc = self._red_noise_acc(state, "sigdepnoise_acc") + self.muscle_noise_params.sigdepnoise_level*_selected_muscle_control*_noise
+                noise_info["sigdepnoise_acc"] = _acc
+                _selected_muscle_control += _acc
             else:
                 raise NotImplementedError(f"{self.muscle_noise_params.sigdepnoise_type}")
         
         if self.muscle_noise_params.constantnoise_type is not None:
             rng, rng1 = jax.random.split(rng, 2)
-            _noise = jax.random.normal(rng1)
+            _noise = jax.random.normal(rng1, shape=_selected_muscle_control.shape)
             if self.muscle_noise_params.constantnoise_type == "white":
                 _selected_muscle_control += self.muscle_noise_params.constantnoise_level*_noise
             elif self.muscle_noise_params.constantnoise_type == "whiteonly":  #only for debugging purposes
                 _selected_muscle_control = self.muscle_noise_params.constantnoise_level*_noise
             elif self.muscle_noise_params.constantnoise_type == "red":
-                self._constantnoise_acc += self.muscle_noise_params.constantnoise_level*_noise
-                _selected_muscle_control += self._constantnoise_acc
+                _acc = self._red_noise_acc(state, "constantnoise_acc") + self.muscle_noise_params.constantnoise_level*_noise
+                noise_info["constantnoise_acc"] = _acc
+                _selected_muscle_control += _acc
             else:
                 raise NotImplementedError(f"{self.muscle_noise_params.constantnoise_type}")
 
@@ -629,7 +642,7 @@ class MyoUserBase(mjx_env.MjxEnv):
             # Set EIP to 0
             new_ctrl = new_ctrl.at[self.EIPpos].set(0)
 
-        return new_ctrl
+        return new_ctrl, noise_info
 
     def get_obs_vec(self, data, info):
         obs_dict = self.get_obs_dict(data, info)
