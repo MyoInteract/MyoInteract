@@ -14,6 +14,8 @@
 # ==============================================================================
 """Base class for MyoUser Arm Pointing model."""
 import collections
+from copy import deepcopy
+import math
 import tqdm
 
 import jax
@@ -27,7 +29,8 @@ from omegaconf import MISSING
 from mujoco_playground._src import mjx_env  # Several helper functions are only visible under _src
 from myosuite.envs.myo.fatigue import CumulativeFatigue
 from myosuite.envs.myo.myouser.base import MyoUserBase, BaseEnvConfig
-from dataclasses import dataclass, field, make_dataclass
+from myosuite.envs.myo.myouser.target_validation import normalize_pointing_ranges, validate_target_sampling
+from dataclasses import asdict, dataclass, field, make_dataclass
 from typing import List, Dict, Union, Any, Type, Tuple
 
 @dataclass
@@ -278,8 +281,11 @@ class PointingTargetClass(TargetClass):
         self.total_phases = total_phases
         self.is_last_phase = phase_number == total_phases - 1
         self.target_coordinates_origin = target_coordinates_origin
+        target_pos_range, target_radius_range = normalize_pointing_ranges(target_pos_range, target_radius_range)
         self.target_pos_range = jp.array(target_pos_range)
         self.target_radius_range = jp.array(target_radius_range)
+        if dwell_steps < 1:
+            raise ValueError("Sphere dwell time must cover at least one control timestep.")
         self.dwell_steps = dwell_steps
         self.weighted_reward_keys = weighted_reward_keys
         self.show_all_targets = show_all_targets
@@ -295,18 +301,25 @@ class PointingTargetClass(TargetClass):
         rng, subkey = jax.random.split(sampler_info['rng'])
         sampled_pos = jax.random.uniform(subkey, (3,), minval=self.target_pos_range[0], maxval=self.target_pos_range[1])
         sampled_pos = self.target_coordinates_origin + sampled_pos
-        return {'rng': rng, 'sampled_pos': sampled_pos, 'prev_pos': sampler_info['prev_pos']}
+        return {**sampler_info, 'rng': rng, 'sampled_pos': sampled_pos, 'attempts': sampler_info['attempts'] + 1}
 
     def satistifies_cond(self, sampler_info):
         distance = jp.linalg.norm(sampler_info['sampled_pos'] - sampler_info['prev_pos'], axis=-1)
-        return distance < self.min_distance
+        return (distance < self.min_distance) & (sampler_info['attempts'] < 128)
     
     def generate_target_pos(self, rng: jax.random.PRNGKey, prev_pos: jp.ndarray = None):
-        if prev_pos is None:    
-            prev_pos = jp.array([-999., -999., -999.])
-        sampler_info = {'rng': rng, 'prev_pos': prev_pos, 'sampled_pos': prev_pos}
-        target_pos = jax.lax.while_loop(self.satistifies_cond, self.sampler, sampler_info)['sampled_pos']
-        return target_pos
+        """Sample at most 128 times, then use a preflight-certified farthest corner."""
+        if prev_pos is None:
+            return self.sampler({'rng': rng, 'prev_pos': jp.zeros(3),
+                                 'sampled_pos': jp.zeros(3), 'attempts': jp.array(0)})['sampled_pos']
+        sampler_info = {'rng': rng, 'prev_pos': prev_pos, 'sampled_pos': prev_pos, 'attempts': jp.array(0)}
+        sampled = jax.lax.while_loop(self.satistifies_cond, self.sampler, sampler_info)['sampled_pos']
+        bounds = self.target_pos_range + self.target_coordinates_origin
+        # Preflight validation guarantees that this farthest corner is valid for
+        # every possible previous target position. Never relax target separation.
+        corner = jp.where(jp.abs(bounds[0] - prev_pos) >= jp.abs(bounds[1] - prev_pos),
+                          bounds[0], bounds[1])
+        return jp.where(jp.linalg.norm(sampled - prev_pos) >= self.min_distance, sampled, corner)
 
     def generate_target_size(self, rng: jax.random.PRNGKey):
         target_size = jax.random.uniform(rng, minval=self.target_radius_range[0], maxval=self.target_radius_range[1])
@@ -341,7 +354,7 @@ class PointingTargetClass(TargetClass):
         info['rng'] = rng
         return info
 
-    def get_task_obs_dict(self, info: Dict[str, Any], obs_dict: Dict[str, Any]):
+    def get_task_obs_dict(self, info: Dict[str, Any], obs_dict: Dict[str, Any], advance_task=True):
         ee_pos = obs_dict['ee_pos']
         target_pos = info[f'target_{self.phase_number}/target_pos']
         target_size = info[f'target_{self.phase_number}/target_size']
@@ -349,8 +362,8 @@ class PointingTargetClass(TargetClass):
         inside_target = reach_dist < target_size
         extra_dist = self.compute_extra_dist(info)
         reach_dist = reach_dist + extra_dist
-        _steps_inside_target = jp.select([inside_target], [info['steps_inside_target'] + 1], 0)
-        phase_completed = 1.0 * (_steps_inside_target >= self.dwell_steps)
+        _steps_inside_target = jp.select([inside_target], [info['steps_inside_target'] + jp.asarray(advance_task, dtype=jp.float32)], 0)
+        phase_completed = 1.0 * (advance_task & (_steps_inside_target >= self.dwell_steps))
         dwell_fraction = -1. + 2. * jp.minimum(1., _steps_inside_target / self.dwell_steps)
         next_phase, task_completed = self.compute_next_phase(phase_completed, self.phase_number, self.total_phases)
         obs_dict['task_completed'] = task_completed
@@ -420,7 +433,7 @@ class ButtonTargetClass(TargetClass):
         info[f'target_{self.phase_number}/target_size'] = self.geom_size[0] #TODO: Should be 3D size
         return info
 
-    def get_task_obs_dict(self, info: Dict[str, Any], obs_dict: Dict[str, Any]):
+    def get_task_obs_dict(self, info: Dict[str, Any], obs_dict: Dict[str, Any], advance_task=True):
         # Set target position for reach distance calculation
         ee_pos = obs_dict['ee_pos']
         target_pos = info[f'target_{self.phase_number}/target_pos']
@@ -435,10 +448,10 @@ class ButtonTargetClass(TargetClass):
         # For button targets, we consider "inside target" as button being pressed
         inside_target = button_pressed
         
-        _steps_inside_target = jp.select([inside_target], [info['steps_inside_target'] + 1], 0)
+        _steps_inside_target = jp.select([inside_target], [info['steps_inside_target'] + jp.asarray(advance_task, dtype=jp.float32)], 0)
         # For buttons, we can use a shorter dwell time or immediate completion
         dwell_steps = 1  # Immediate completion on button press
-        phase_completed = 1.0 * (_steps_inside_target >= dwell_steps)
+        phase_completed = 1.0 * (advance_task & (_steps_inside_target >= dwell_steps))
         dwell_fraction = -1. + 2. * jp.minimum(1., _steps_inside_target / dwell_steps)
         next_phase, task_completed = self.compute_next_phase(phase_completed, self.phase_number, self.total_phases)
         obs_dict['task_completed'] = task_completed
@@ -459,11 +472,30 @@ class ButtonTargetClass(TargetClass):
 
 
 class MyoUserUniversal(MyoUserBase): 
+
+    def __init__(self, config, config_overrides=None):
+        # Stored research checkpoints predate some task flags and reward terms.
+        # Normalize a private copy so evaluation never rewrites their config or
+        # adds features to the policy's explicitly recorded observation vector.
+        config = deepcopy(config)
+        defaults = asdict(UniversalTaskConfig())
+        with config.unlocked():
+            task = config.task_config
+            provided_weights = 'weighted_reward_keys' in task
+            for name, value in defaults.items():
+                if name != 'targets' and name not in task:
+                    task[name] = deepcopy(value)
+            if provided_weights:
+                for name in defaults['weighted_reward_keys']:
+                    if name not in task.weighted_reward_keys:
+                        task.weighted_reward_keys[name] = 0.0
+        super().__init__(config, config_overrides)
     
     def add_task_relevant_geoms(self, spec: mujoco.MjSpec):
         targets = self._config.task_config.targets
         num_targets = targets.num_targets
         targets = [getattr(targets, f"target_{i}") for i in range(num_targets)]
+        validate_target_sampling(targets, self.dt, self._config.task_config.reach_settings.target_origin_rel)
         total_phases = len(targets)
         self.target_objs = []
         model = spec.compile()
@@ -479,7 +511,7 @@ class MyoUserUniversal(MyoUserBase):
                     target_pos_range=jp.array(target.position),
                     target_radius_range=jp.array(target.size),
                     target_coordinates_origin=target_coordinates_origin,
-                    dwell_steps=int(target.dwell_duration/self.dt),
+                    dwell_steps=max(1, math.ceil(target.dwell_duration/self.dt - 1e-9)),
                     weighted_reward_keys=self._config.task_config.weighted_reward_keys,
                     show_all_targets=self._config.task_config.show_all_targets,
                     enable_extra_dist=self._config.task_config.enable_extra_dist
@@ -526,8 +558,8 @@ class MyoUserUniversal(MyoUserBase):
     def _setup(self):
         super()._setup()
         self.reach_settings = self._config.task_config.reach_settings
-        self.obs_keys = self._config.task_config.obs_keys
-        self.omni_keys = self._config.task_config.omni_keys
+        self.obs_keys = list(self._config.task_config.obs_keys)
+        self.omni_keys = list(self._config.task_config.omni_keys)
         
         if not self._config.vision.enabled:
             print(f"No vision, so adding {self.omni_keys} to obs_keys")
@@ -555,7 +587,49 @@ class MyoUserUniversal(MyoUserBase):
 
     def auto_reset(self, state_before_reset):
         rng = state_before_reset.info['rng']
-        return self.reset(rng)
+        return self.reset(rng, render_token=state_before_reset.info.get('render_token'))
+
+    def task_render_inputs(self, data, info):
+        """Build visual transforms and sizes without changing collision physics."""
+        positions = data.geom_xpos
+        sizes = self.mjx_model.geom_size
+        colors = self.mjx_model.geom_rgba
+        materials = self.mjx_model.geom_matid
+        phase = info['phase']
+        for target in self.target_objs:
+            geom_id = target.target_geom_id
+            positions = positions.at[geom_id].set(info[f'target_{target.phase_number}/target_pos'])
+            if isinstance(target, PointingTargetClass):
+                size = jp.full(3, info[f'target_{target.phase_number}/target_size'])
+            else:
+                size = target.geom_size
+            if target.show_all_targets:
+                color = jp.where(phase == target.phase_number, jp.array([0., 1., 0., 1.]),
+                                 jp.where(phase > target.phase_number, jp.array([0., 0., 1., 0.5]),
+                                          jp.array([1., 0., 0., 0.5])))
+                colors = colors.at[geom_id].set(color)
+            else:
+                size = jp.where(phase == target.phase_number, size, jp.zeros(3))
+            sizes = sizes.at[geom_id].set(size)
+            # Madrona's color override material uses the current geom RGB.
+            materials = materials.at[geom_id].set(-2)
+        visual_model = self.mjx_model.replace(geom_size=sizes, geom_rgba=colors, geom_matid=materials)
+        return data.replace(geom_xpos=positions), visual_model
+
+    def generate_task_pixels(self, data, info, render_token=None):
+        render_data, render_model = self.task_render_inputs(data, info)
+        # Madrona.render updates transforms only. Its init primitive also copies
+        # model sizes/colors, which change on reset and when the active phase changes.
+        return self.generate_pixels(render_data, render_token, model=render_model, refresh_model=True)
+
+    def get_obs_vec_aux_task(self, obs_dict, obsvec):
+        return {
+            'proprioception': obsvec,
+            'pixels/depth': obs_dict['pixels/depth'],
+            'vision_aux_targets': jp.concatenate([
+                obs_dict['target_pos'].ravel(), jp.asarray(obs_dict['target_size']).reshape(1)
+            ]),
+        }
 
     def reset(self, rng, render_token=None, add_to_info=None):
         _, rng = jax.random.split(rng, 2)
@@ -587,13 +661,15 @@ class MyoUserUniversal(MyoUserBase):
         
         info['target_pos'] = info['target_0/target_pos']
         info['target_size'] = info['target_0/target_size']        
+        if self.vision:
+            info.update(self.generate_task_pixels(data, info, render_token))
         reward, done = jp.zeros(2)
         metrics = {metric: 0.0 for metric in self.non_accumulation_metrics}
         metrics.update({metric: 0.0 for metric in self.accumulation_metrics})
         obs, info = self.get_obs_vec(data, info)
         return State(data, obs, reward, done, metrics, info)
 
-    def get_obs_dict(self, data, info):
+    def get_obs_dict(self, data, info, advance_task=False):
 
         obs_dict = {}
         obs_dict['time'] = jp.array(data.time)
@@ -622,13 +698,13 @@ class MyoUserUniversal(MyoUserBase):
         obs_dict['phase_progress'] = - 1. + 2. * (info['phase'] / self.num_targets)
 
         obs_funcs = [t.get_task_obs_dict for t in self.target_objs]
-        obs_dict = jax.lax.switch(info['phase'], obs_funcs, info, obs_dict)
+        obs_dict = jax.lax.switch(info['phase'], obs_funcs, info, obs_dict, advance_task)
         
         return obs_dict
 
     def update_info(self, info, obs_dict):
         info['last_ctrl'] = obs_dict['last_ctrl']
-        info['steps_inside_target'] = obs_dict['steps_inside_target']
+        info['steps_inside_target'] = jp.where(obs_dict['phase_completed'], 0., obs_dict['steps_inside_target'])
         info['reach_dist'] = obs_dict['reach_dist']
         info['target_pos'] = obs_dict['target_pos']
         info['target_size'] = obs_dict['target_size']
@@ -656,7 +732,10 @@ class MyoUserUniversal(MyoUserBase):
                 phase_idx
                 for idx, entry in enumerate(episode_rollout)
                 for phase_idx in range(len(self.target_objs))
-                if entry.metrics.get(f"target_{phase_idx}_completed", False)
+                if entry.metrics.get(
+                    'target_final_completed' if phase_idx == len(self.target_objs) - 1
+                    else f"target_{phase_idx}_completed", False
+                )
             }
 
             for i in range(len(self.target_objs)):
@@ -671,7 +750,7 @@ class MyoUserUniversal(MyoUserBase):
 
     def get_jac_effort_costs(self, obs_dict):
         r_effort = 0.00198*jp.linalg.norm(obs_dict['last_ctrl'])**2 
-        r_jacc = 6.67e-6*jp.linalg.norm(obs_dict['qacc'][self._independent_dofs])**2 
+        r_jacc = 6.67e-6*jp.linalg.norm(obs_dict['qacc'])**2
 
         effort_cost = r_effort + r_jacc
         
@@ -709,14 +788,20 @@ class MyoUserUniversal(MyoUserBase):
         target_step_fns = [t.target_step for t in self.target_objs]
         state = jax.lax.switch(state.info['phase'], target_step_fns, state)
 
-        obs_dict = self.get_obs_dict(data, state.info)
-        
-        obs = self.obsdict2obsvec(obs_dict)
+        obs_dict = self.get_obs_dict(data, state.info, advance_task=True)
 
         # rwd_funcs = [t.get_task_reward_dict for t in self.target_objs]
         rwd_dict = self.get_reward_dict(obs_dict)
 
         _updated_info = self.update_info(state.info, obs_dict)
+        # Rewards describe the transition just taken; the next policy observation
+        # must describe its new active target without advancing dwell time again.
+        observation_dict = self.get_obs_dict(data, _updated_info)
+        _updated_info = self.update_info(_updated_info, observation_dict)
+        if self.vision:
+            _updated_info.update(self.generate_task_pixels(data, _updated_info, _updated_info['render_token']))
+            observation_dict = self.update_obs_with_pixels(observation_dict, _updated_info)
+        obs = self.obsdict2obsvec(observation_dict)
         state = state.replace(info=_updated_info)
         _, state.info['rng'] = jax.random.split(rng, 2)
         done = rwd_dict['done']
@@ -758,6 +843,3 @@ class MyoUserUniversal(MyoUserBase):
         phase = state.info['phase']
         for target_obj in self.target_objs:
             target_obj.update_task_visuals(mj_model, state, phase)
-
-
-        
