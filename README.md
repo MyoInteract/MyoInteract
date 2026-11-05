@@ -32,6 +32,10 @@ conda activate myointeract_env
 
 Open **myointeract_ui.ipynb** and follow the instructions there to setup the interaction tasks and to run training. There are three existing pre-saved configurations which you can load from. Alternatively, you can also create your own interaction task!
 
+## Movement metrics
+
+Set `run.movement_metrics=true` to also log HCI movement metrics of the evaluation rollouts (movement time per target, Fitts' law index of difficulty, effective width, throughput and regression, smoothness, velocity profile, path straightness and effort). See [docs/source/movement_metrics.rst](docs/source/movement_metrics.rst).
+
 ## Contributors
 
 <table>

@@ -20,6 +20,7 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
 from datetime import datetime
 import warnings
 import pickle
+import json
 import h5py
 
 import jax
@@ -30,6 +31,7 @@ from absl import logging
 from myosuite.train.utils.train import train_or_load_checkpoint
 from myosuite.train.utils.wrapper import _maybe_wrap_env_for_evaluation
 from myosuite.envs.myo.myouser.evaluate import evaluate_policy
+from myosuite.envs.myo.myouser.pointing_metrics import rollout_trials, summarize_trials
 from myosuite.envs.myo.myouser.utils import render_traj, ProgressLogger, set_global_seed
 from etils import epath
 import jax
@@ -189,11 +191,13 @@ def train(cfg: Config):
   jit_step = jax.jit(env.step)
 
   # Prepare for evaluation
+  movement_metrics = config.run.get("movement_metrics", False)
   #TODO: pass rng instead of seed to evaluate_policy, to avoid correlation between rng used for _maybe_wrap_env_for_evaluation and for further evaluation reset/step calls (re-generated using same seed)
   rollouts, log_type = evaluate_policy(#checkpoint_path=_LOAD_CHECKPOINT_PATH.value, env_name=_ENV_NAME.value,
                             eval_env=env, jit_inference_fn=jit_inference_fn, jit_reset=jit_reset, jit_step=jit_step,
                             seed=config.run.eval_seed,
-                            n_episodes=n_episodes)  #config.run.eval_episodes) 
+                            n_episodes=n_episodes,  #config.run.eval_episodes)
+                            include_reset_state=movement_metrics)
   render_every = 2
   fps = 1.0 / env.dt / render_every
   print(f"FPS for rendering: {fps}")
@@ -208,6 +212,18 @@ def train(cfg: Config):
     print("Rollout video saved as 'madrona_rollout.mp4'.")
     if config.wandb.enabled and not config.run.play_only:
       wandb.log({'final_policy/madrona_view': wandb.Video(str(logdir / "madrona_rollout.mp4"), format="mp4")})  #, fps=fps)})
+
+  # Opt-in HCI movement metrics (per-target trials and a Fitts' law summary)
+  if movement_metrics:
+    trials = rollout_trials(rollouts, env)
+    summary = summarize_trials(trials)
+    rollouts = [rollout[1:] for rollout in rollouts]  # drop the reset states again
+    with open(logdir / "movement_metrics.json", "w", encoding="utf-8") as fp:
+      json.dump({"summary": summary, "trials": trials}, fp, indent=2)
+    print(f"Movement metrics: {summary}")
+    print("Movement metrics saved as 'movement_metrics.json'.")
+    if config.wandb.enabled and not config.run.play_only:
+      wandb.log({f'final_policy/movement/{k}': v for k, v in summary.items()})
 
   print(f"Return: {jp.array([r.reward for rollout in rollouts for r in rollout]).sum()}")
   print(f"env: {env_cfg.env_name}")

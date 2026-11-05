@@ -28,6 +28,7 @@ Advanced user are invited to familiarize themselves with the basics of the `Open
    :caption: Advanced Features
 
    suite
+   movement_metrics
    
 
 .. toctree::

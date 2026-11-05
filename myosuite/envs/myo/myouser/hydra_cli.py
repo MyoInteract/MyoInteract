@@ -152,6 +152,7 @@ class RunConfig:
     eval_episodes: int = 10
     eval_seed: int = 123
     using_gradio: bool = False
+    movement_metrics: bool = False  # log HCI movement metrics of evaluation rollouts
 
 @dataclass
 class Config:

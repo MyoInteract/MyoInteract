@@ -10,13 +10,14 @@ def find_first_one(arr):
 # Returns the index of first 1, or len(arr) if no 1 exists
     return jp.argmax(jp.concatenate([arr, jp.array([1])]))
 
-def evaluate_non_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed=123, n_episodes=1, ep_length=None, reset_info_kwargs={}):
+def evaluate_non_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed=123, n_episodes=1, ep_length=None, reset_info_kwargs={}, include_reset_state=False):
     eval_key = jax.random.PRNGKey(seed)
     eval_key, reset_keys = jax.random.split(eval_key)
     state = jit_reset(reset_keys, eval_id=jp.arange(n_episodes, dtype=jp.int32), **reset_info_kwargs)
     unvmap = lambda x, i : jax.tree.map(lambda x: x[i], x)
     dones = jp.zeros(n_episodes)
-    rollouts = {i: [] for i in range(n_episodes)}
+    # Optionally start each rollout with its reset state (e.g. for movement metrics)
+    rollouts = {i: [unvmap(state, i)] if include_reset_state else [] for i in range(n_episodes)}
     for ii in range(ep_length):
         eval_key, key = jax.random.split(eval_key)
         ctrl, _ = jit_inference_fn(state.obs, jax.random.split(key, n_episodes))
@@ -33,7 +34,7 @@ def evaluate_non_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed=12
         rollout.append(rollouts[i])
     return rollout, "rollout"
 
-def evaluate_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed=123, n_episodes=1, ep_length=None):
+def evaluate_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed=123, n_episodes=1, ep_length=None, include_reset_state=False):
     eval_key = jax.random.PRNGKey(seed)
     eval_key, reset_keys = jax.random.split(eval_key)
     # reset_keys, reset_prepare_keys = jax.random.split(reset_keys)
@@ -52,7 +53,7 @@ def evaluate_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed=123, n
     extract_states = unvmap_upto(state, n_episodes)
     dones = jp.zeros(n_episodes)
     videos = {i: [] for i in range(n_episodes)}
-    rollouts = {i: [] for i in range(n_episodes)}
+    rollouts = {i: [unvmap(state, i)] if include_reset_state else [] for i in range(n_episodes)}
     for ii in range(ep_length):
         eval_key, key = jax.random.split(eval_key)
         ctrl, _ = jit_inference_fn(state.obs, jax.random.split(key, num_worlds))
@@ -79,12 +80,15 @@ def evaluate_policy(checkpoint_path=None, env_name=None,
                     eval_env=None, jit_inference_fn=None, jit_reset=None, jit_step=None,
                     seed=123, n_episodes=1,
                     ep_length=None,
-                    log_MT_only=False):
+                    log_MT_only=False,
+                    include_reset_state=False):
     """
     Generate an evaluation trajectory from a stored checkpoint policy.
 
     You can either call this method by directly passing the checkpoint, env, jitted policy, etc. (useful if checkpoint was already loaded in advance, e.g., in a Jupyter notebook file), 
     or let this method load the env and policy from scratch by passing only checkpoint_path and env_name (takes ~1min).
+    With include_reset_state=True, each episode's rollout starts with its reset state (needed by
+    myosuite.envs.myo.myouser.pointing_metrics); videos are unchanged.
     """
 
     if checkpoint_path is None:
@@ -110,6 +114,6 @@ def evaluate_policy(checkpoint_path=None, env_name=None,
         ep_length = int(eval_env._config.task_config.max_duration / eval_env._config.ctrl_dt)
 
     if eval_env.vision:
-        return evaluate_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed, n_episodes, ep_length)
+        return evaluate_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed, n_episodes, ep_length, include_reset_state=include_reset_state)
     else:
-        return evaluate_non_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed, n_episodes, ep_length)
+        return evaluate_non_vision(eval_env, jit_inference_fn, jit_reset, jit_step, seed, n_episodes, ep_length, include_reset_state=include_reset_state)

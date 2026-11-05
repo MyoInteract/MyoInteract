@@ -25,6 +25,7 @@ from myosuite.train.myouser.custom_ppo import train as ppo
 from myosuite.train.myouser.custom_ppo import networks_vision_unified as networks
 from myosuite.train.utils.wrapper import wrap_myosuite_training, _maybe_wrap_env_for_evaluation
 from myosuite.envs.myo.myouser.evaluate import evaluate_policy
+from myosuite.envs.myo.myouser.pointing_metrics import rollout_movement_metrics
 from myosuite.envs.myo.myouser.utils import render_traj
 
 # class ProgressEvalVideoLoggerDEPRECATED:
@@ -175,6 +176,7 @@ class ProgressEvalLogger:
                height=480,
                width=640,
                cameras=[None],
+               movement_metrics=False,
                ):
     self.logdir = logdir
     if logdir is not None:
@@ -210,6 +212,8 @@ class ProgressEvalLogger:
 
     # Keys to be logged
     self.eval_metrics_keys = eval_metrics_keys
+    # Opt-in HCI movement metrics (logged as eval_movement/*)
+    self.movement_metrics = movement_metrics
 
     self.height = height
     self.width = width
@@ -239,9 +243,13 @@ class ProgressEvalLogger:
         artifact.save()
     
     # Rollout trajectory
+    movement_metrics = {}
     if self.n_episodes > 0:
         jit_inference_fn = jax.jit(make_policy(params, deterministic=True))
-        rollouts = evaluate_policy(eval_env=self.eval_env, jit_inference_fn=jit_inference_fn, jit_reset=self.jit_reset, jit_step=self.jit_step, seed=self.seed, n_episodes=self.n_episodes_video)[0]
+        rollouts = evaluate_policy(eval_env=self.eval_env, jit_inference_fn=jit_inference_fn, jit_reset=self.jit_reset, jit_step=self.jit_step, seed=self.seed, n_episodes=self.n_episodes_video, include_reset_state=self.movement_metrics)[0]
+        if self.movement_metrics:
+            movement_metrics = {f'eval_movement/{k}': v for k, v in rollout_movement_metrics(rollouts, self.eval_env).items()}
+            rollouts = [rollout[1:] for rollout in rollouts]  # drop the reset states again
         results = self.eval_env.eval_metrics(rollouts) #, eval_metrics_keys=self.eval_metrics_keys)
         plot_eval_metrics(results, step=current_step)
         rollout_metrics_keys = rollouts[0][0].metrics.keys()
@@ -270,9 +278,9 @@ class ProgressEvalLogger:
     # Create video that can be uploaded to Weights & Biases
     video_metrics = {}#self.progress_eval_video(rollouts, current_step)
 
-    metrics = {**rollout_metrics, **task_metrics, **video_metrics, **training_metrics}    
+    metrics = {**rollout_metrics, **movement_metrics, **task_metrics, **video_metrics, **training_metrics}
     wandb.log(metrics, step=current_step)
-    print({**rollout_metrics, **task_metrics})
+    print({**rollout_metrics, **movement_metrics, **task_metrics})
 
     return metrics
   
@@ -515,7 +523,8 @@ def train_or_load_checkpoint(env_name,
                                                                 n_episode_runs=10,
                                                                 n_episodes_video=10,
                                                                 #ep_length=80,
-                                                                cameras=["fixed-eye", None]
+                                                                cameras=["fixed-eye", None],
+                                                                movement_metrics=config.run.get("movement_metrics", False),
                                                                 )
             policy_params_fn = progress_eval_logger.progress_eval_run
         else:
@@ -530,7 +539,8 @@ def train_or_load_checkpoint(env_name,
                                                                     n_episode_runs=10,
                                                                     n_episodes_video=10,
                                                                     #ep_length=80,
-                                                                    cameras=["fixed-eye", None]
+                                                                    cameras=["fixed-eye", None],
+                                                                    movement_metrics=config.run.get("movement_metrics", False),
                                                                     )
             policy_params_fn_checkpoints = progress_eval_logger.progress_eval_run
         else:
