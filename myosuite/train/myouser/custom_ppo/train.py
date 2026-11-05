@@ -657,6 +657,14 @@ def train(
     # print(params[1]["params"]["value_network"]["layers"].keys())
     normalizer_params = params[0]
     network_params = params[1]
+    saved_observation_shape = jnp.shape(normalizer_params.mean)
+    configured_observation_shape = jnp.shape(normalizer_init_params.mean)
+    if saved_observation_shape != configured_observation_shape:
+      raise ValueError(
+          'Checkpoint observation shape does not match the configured environment: '
+          f'{saved_observation_shape} versus {configured_observation_shape}. '
+          'Use the checkpoint observation schema; unknown mismatches cannot be padded or truncated.'
+      )
     network_params["params"]["policy_network"]["layers"] = {int(k): v for k, v in network_params["params"]["policy_network"]["layers"].items()}
     network_params["params"]["value_network"]["layers"] = {int(k): v for k, v in network_params["params"]["value_network"]["layers"].items()}
     if 'vision_aux_output' in network_params['params']:

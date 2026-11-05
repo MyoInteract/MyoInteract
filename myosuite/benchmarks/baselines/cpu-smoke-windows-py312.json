@@ -1,0 +1,1169 @@
+{
+  "schema_version": 1,
+  "protocol": {
+    "policy": "zero",
+    "seeds": [
+      0
+    ],
+    "episodes_per_seed": 1,
+    "max_steps": 2
+  },
+  "cases": [
+    {
+      "task": "ar",
+      "checkpoint": null,
+      "checkpoint_sha256": null,
+      "config_sha256": "dc378fdeb103b0f9d260df1fc112c0d6da29357b4ae891cb9b52868b72e1a1db",
+      "manifest": {
+        "schema_version": 1,
+        "created_at": "2026-10-22T23:32:19.641860+00:00",
+        "status": "completed",
+        "source": {
+          "commit": "7acb81dbe1ef4eea1762ee9af78f27bee9c91e58",
+          "dirty": true
+        },
+        "config": {
+          "env": {
+            "ctrl_dt": 0.05,
+            "env_name": "MyoUserUniversal",
+            "eval_mode": true,
+            "model_path": "myosuite/envs/myo/assets/arm/mobl_arms_index_universal_myouser.xml",
+            "muscle_config": {
+              "control_type": "default",
+              "muscle_condition": null,
+              "noise_params": {
+                "constantnoise_level": 0.185,
+                "constantnoise_type": null,
+                "sigdepnoise_level": 0.103,
+                "sigdepnoise_type": null
+              },
+              "sex": null
+            },
+            "sim_dt": 0.002,
+            "task_config": {
+              "dwell_duration": 0.25,
+              "enable_extra_dist": true,
+              "exponential_reach_reward": false,
+              "max_duration": 8.0,
+              "max_trials": 1,
+              "obs_keys": [
+                "qpos",
+                "qvel",
+                "qacc",
+                "ee_pos",
+                "act"
+              ],
+              "omni_keys": [
+                "target_pos",
+                "target_size",
+                "phase_progress",
+                "dwell_fraction"
+              ],
+              "reach_metric": 10.0,
+              "reach_settings": {
+                "ref_site": "humphant",
+                "target_origin_rel": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "reset_type": "range_uniform",
+              "show_all_targets": true,
+              "target_init_seed": 1,
+              "targets": {
+                "num_targets": 8,
+                "target_0": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.25,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.1,
+                      -0.3
+                    ],
+                    [
+                      0.35,
+                      0.1,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    1.0,
+                    0.0,
+                    0.0
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.05,
+                    0.15
+                  ]
+                },
+                "target_1": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -0.79,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.41,
+                    -0.05,
+                    -0.16
+                  ],
+                  "rgb": [
+                    0.8,
+                    0.1,
+                    0.8
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                },
+                "target_2": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.25,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.1,
+                      -0.3
+                    ],
+                    [
+                      0.35,
+                      0.1,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.4,
+                    0.0,
+                    1.0
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.05,
+                    0.15
+                  ]
+                },
+                "target_3": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -0.79,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.41,
+                    0.07,
+                    -0.16
+                  ],
+                  "rgb": [
+                    0.1,
+                    0.8,
+                    0.8
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                },
+                "target_4": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.25,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.1,
+                      -0.3
+                    ],
+                    [
+                      0.35,
+                      0.1,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.0,
+                    1.0,
+                    0.4
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.05,
+                    0.15
+                  ]
+                },
+                "target_5": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -0.79,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.5,
+                    -0.05,
+                    -0.06
+                  ],
+                  "rgb": [
+                    0.8,
+                    0.1,
+                    0.8
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                },
+                "target_6": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.25,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.1,
+                      -0.3
+                    ],
+                    [
+                      0.35,
+                      0.1,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    1.0,
+                    1.0,
+                    0.0
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.05,
+                    0.15
+                  ]
+                },
+                "target_7": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -0.79,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.5,
+                    0.07,
+                    -0.06
+                  ],
+                  "rgb": [
+                    0.1,
+                    0.1,
+                    0.1
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                }
+              },
+              "weighted_reward_keys": {
+                "done": 10.0,
+                "jac_effort": 1.0,
+                "neural_effort": 0.001,
+                "phase_bonus": 0.0,
+                "reach": 1.0
+              }
+            },
+            "vision": {
+              "enabled": false
+            }
+          },
+          "rl": {
+            "action_repeat": 1,
+            "batch_size": 128,
+            "clipping_epsilon": 0.3,
+            "discounting": 0.97,
+            "entropy_cost": 0.001,
+            "episode_length": 160,
+            "learning_rate": 0.0003,
+            "load_checkpoint_path": null,
+            "log_training_metrics": true,
+            "max_grad_norm": 1.0,
+            "network_factory": {
+              "policy_hidden_layer_sizes": [
+                128,
+                128,
+                128,
+                128
+              ],
+              "value_hidden_layer_sizes": [
+                256,
+                256,
+                256,
+                256,
+                256
+              ]
+            },
+            "normalize_observations": true,
+            "num_checkpoints": 5,
+            "num_envs": 1024,
+            "num_evals": 1,
+            "num_minibatches": 8,
+            "num_resets_per_eval": 1,
+            "num_timesteps": 0,
+            "num_updates_per_batch": 8,
+            "reward_scaling": 0.1,
+            "training_metrics_steps": 100000,
+            "unroll_length": 10
+          },
+          "run": {
+            "deterministic_rscope": true,
+            "domain_randomization": false,
+            "eval_episodes": 10,
+            "eval_seed": 123,
+            "local_plotting": false,
+            "log_wandb_videos": true,
+            "play_only": false,
+            "rscope_envs": null,
+            "seed": 2,
+            "suffix": "eight_targets_v1",
+            "use_tb": false,
+            "using_gradio": false
+          },
+          "vision": {
+            "enabled": false
+          },
+          "wandb": {
+            "enabled": false
+          }
+        },
+        "config_sha256": "dc378fdeb103b0f9d260df1fc112c0d6da29357b4ae891cb9b52868b72e1a1db",
+        "restore": {
+          "mode": "evaluation",
+          "checkpoint_path": null,
+          "checkpoint_sha256": null,
+          "optimizer_state_restored": false,
+          "training_step_restored": false
+        },
+        "seeds": {
+          "seed": 2,
+          "eval_seed": 123
+        },
+        "runtime": {
+          "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+          "platform": "Windows-11-10.0.26300-SP0",
+          "packages": {
+            "MyoSuite": "2.8.3",
+            "numpy": "2.5.4",
+            "scipy": "1.18.1",
+            "jax": "0.5.3",
+            "jaxlib": "0.5.3",
+            "mujoco": "3.3.5",
+            "mujoco-mjx": "3.3.5",
+            "playground": "0.0.5",
+            "brax": "0.12.4",
+            "flax": "0.10.6",
+            "optax": "0.2.4",
+            "orbax-checkpoint": "0.11.21",
+            "gradio": "5.50.0"
+          },
+          "backend": "cpu",
+          "devices": [
+            "TFRT_CPU_0"
+          ],
+          "environment": {}
+        }
+      },
+      "summary": {
+        "episodes": [
+          {
+            "success": false,
+            "duration_seconds": 0.09999994188547134,
+            "steps": 2,
+            "reward": -6.922947406768799,
+            "reward_components": {
+              "distance_reward": -6.9123451709747314,
+              "phase_bonus_reward": 0.0,
+              "done_reward": 0.0,
+              "neural_effort_reward": 0.0,
+              "jac_effort_reward": -0.010602103313431144
+            },
+            "max_reward_decomposition_error": 7.101334631443024e-08
+          }
+        ],
+        "success_rate": 0.0,
+        "mean_duration_seconds": 0.09999994188547134,
+        "mean_reward": -6.922947406768799,
+        "mean_reward_components": {
+          "distance_reward": -6.9123451709747314,
+          "phase_bonus_reward": 0.0,
+          "done_reward": 0.0,
+          "neural_effort_reward": 0.0,
+          "jac_effort_reward": -0.010602103313431144
+        }
+      },
+      "movement_metrics": {
+        "status": "unavailable",
+        "reason": "Movement metrics are supplied by upstream PR #3."
+      }
+    },
+    {
+      "task": "mobile-typing-5c-words",
+      "checkpoint": null,
+      "checkpoint_sha256": null,
+      "config_sha256": "608c69de523181b4993c633c7ea0afbde021aaef554e8ac6fa1809fed1707c78",
+      "manifest": {
+        "schema_version": 1,
+        "created_at": "2026-10-22T23:34:37.161621+00:00",
+        "status": "completed",
+        "source": {
+          "commit": "0209f50f12723606926857770f5e549aaa5be6ef",
+          "dirty": false
+        },
+        "config": {
+          "env": {
+            "ctrl_dt": 0.05,
+            "env_name": "MyoUserUniversal",
+            "eval_mode": true,
+            "model_path": "myosuite/envs/myo/assets/arm/mobl_arms_index_universal_myouser.xml",
+            "muscle_config": {
+              "control_type": "default",
+              "muscle_condition": null,
+              "noise_params": {
+                "constantnoise_level": 0.185,
+                "constantnoise_type": null,
+                "sigdepnoise_level": 0.103,
+                "sigdepnoise_type": null
+              },
+              "sex": null
+            },
+            "sim_dt": 0.002,
+            "task_config": {
+              "dwell_duration": 0.25,
+              "enable_extra_dist": true,
+              "exponential_reach_reward": false,
+              "max_duration": 4.0,
+              "max_trials": 1,
+              "obs_keys": [
+                "qpos",
+                "qvel",
+                "qacc",
+                "ee_pos",
+                "act"
+              ],
+              "omni_keys": [
+                "target_pos",
+                "target_size",
+                "phase"
+              ],
+              "reach_metric": 10.0,
+              "reach_settings": {
+                "ref_site": "humphant",
+                "target_origin_rel": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "reset_type": "range_uniform",
+              "show_all_targets": true,
+              "target_init_seed": 27,
+              "targets": {
+                "num_targets": 5,
+                "target_0": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.05,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.036,
+                      0.3
+                    ],
+                    [
+                      0.375,
+                      0.036,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.8,
+                    0.1,
+                    0.1
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.01,
+                    0.01
+                  ]
+                },
+                "target_1": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.05,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.036,
+                      0.3
+                    ],
+                    [
+                      0.375,
+                      0.036,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.1,
+                    0.8,
+                    0.1
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.01,
+                    0.01
+                  ]
+                },
+                "target_2": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.05,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.036,
+                      0.3
+                    ],
+                    [
+                      0.375,
+                      0.036,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.1,
+                    0.1,
+                    0.8
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.01,
+                    0.01
+                  ]
+                },
+                "target_3": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.05,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.036,
+                      0.3
+                    ],
+                    [
+                      0.375,
+                      0.036,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.8,
+                    0.8,
+                    0.1
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.01,
+                    0.01
+                  ]
+                },
+                "target_4": {
+                  "completion_bonus": 0.0,
+                  "dwell_duration": 0.05,
+                  "name": "pointing_target",
+                  "position": [
+                    [
+                      0.225,
+                      -0.036,
+                      0.3
+                    ],
+                    [
+                      0.375,
+                      0.036,
+                      0.3
+                    ]
+                  ],
+                  "reward_incentive": 0.0,
+                  "rgb": [
+                    0.4,
+                    0.4,
+                    0.4
+                  ],
+                  "shape": "sphere",
+                  "size": [
+                    0.01,
+                    0.01
+                  ]
+                }
+              },
+              "weighted_reward_keys": {
+                "done": 10.0,
+                "jac_effort": 0.0,
+                "neural_effort": 0.001,
+                "phase_bonus": 0.0,
+                "reach": 1.0
+              }
+            },
+            "vision": {
+              "enabled": false
+            }
+          },
+          "rl": {
+            "action_repeat": 1,
+            "batch_size": 128,
+            "clipping_epsilon": 0.3,
+            "discounting": 0.97,
+            "entropy_cost": 0.001,
+            "episode_length": 80,
+            "learning_rate": 0.0003,
+            "load_checkpoint_path": "None",
+            "log_training_metrics": true,
+            "max_grad_norm": 1.0,
+            "network_factory": {
+              "policy_hidden_layer_sizes": [
+                128,
+                128,
+                128,
+                128
+              ],
+              "value_hidden_layer_sizes": [
+                256,
+                256,
+                256,
+                256,
+                256
+              ]
+            },
+            "normalize_observations": true,
+            "num_checkpoints": 1,
+            "num_envs": 1024,
+            "num_evals": 1,
+            "num_minibatches": 8,
+            "num_resets_per_eval": 1,
+            "num_timesteps": 0,
+            "num_updates_per_batch": 8,
+            "reward_scaling": 0.1,
+            "training_metrics_steps": 100000,
+            "unroll_length": 10
+          },
+          "run": {
+            "deterministic_rscope": true,
+            "domain_randomization": false,
+            "eval_episodes": 10,
+            "eval_seed": 123,
+            "local_plotting": false,
+            "log_wandb_videos": true,
+            "play_only": false,
+            "rscope_envs": null,
+            "seed": 0,
+            "suffix": null,
+            "use_tb": false,
+            "using_gradio": true
+          },
+          "vision": {
+            "enabled": false
+          },
+          "wandb": {
+            "enabled": false
+          }
+        },
+        "config_sha256": "608c69de523181b4993c633c7ea0afbde021aaef554e8ac6fa1809fed1707c78",
+        "restore": {
+          "mode": "evaluation",
+          "checkpoint_path": null,
+          "checkpoint_sha256": null,
+          "optimizer_state_restored": false,
+          "training_step_restored": false
+        },
+        "seeds": {
+          "seed": 0,
+          "eval_seed": 123
+        },
+        "runtime": {
+          "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+          "platform": "Windows-11-10.0.26300-SP0",
+          "packages": {
+            "MyoSuite": "2.8.3",
+            "numpy": "2.5.4",
+            "scipy": "1.18.1",
+            "jax": "0.5.3",
+            "jaxlib": "0.5.3",
+            "mujoco": "3.3.5",
+            "mujoco-mjx": "3.3.5",
+            "playground": "0.0.5",
+            "brax": "0.12.4",
+            "flax": "0.10.6",
+            "optax": "0.2.4",
+            "orbax-checkpoint": "0.11.21",
+            "gradio": "5.50.0"
+          },
+          "backend": "cpu",
+          "devices": [
+            "TFRT_CPU_0"
+          ],
+          "environment": {}
+        }
+      },
+      "summary": {
+        "episodes": [
+          {
+            "success": false,
+            "duration_seconds": 0.09999994188547134,
+            "steps": 2,
+            "reward": -1.387788474559784,
+            "reward_components": {
+              "distance_reward": -1.387788474559784,
+              "phase_bonus_reward": 0.0,
+              "done_reward": 0.0,
+              "neural_effort_reward": 0.0,
+              "jac_effort_reward": 0.0
+            },
+            "max_reward_decomposition_error": 0.0
+          }
+        ],
+        "success_rate": 0.0,
+        "mean_duration_seconds": 0.09999994188547134,
+        "mean_reward": -1.387788474559784,
+        "mean_reward_components": {
+          "distance_reward": -1.387788474559784,
+          "phase_bonus_reward": 0.0,
+          "done_reward": 0.0,
+          "neural_effort_reward": 0.0,
+          "jac_effort_reward": 0.0
+        }
+      },
+      "movement_metrics": {
+        "status": "unavailable",
+        "reason": "Movement metrics are supplied by upstream PR #3."
+      }
+    },
+    {
+      "task": "public-display-4-buttons",
+      "checkpoint": null,
+      "checkpoint_sha256": null,
+      "config_sha256": "59e3000dd67dd6626a4671c383c4d1a0421556ecd2ac9b2f90f16d2fb6924ca9",
+      "manifest": {
+        "schema_version": 1,
+        "created_at": "2026-10-22T23:36:32.580750+00:00",
+        "status": "completed",
+        "source": {
+          "commit": "0209f50f12723606926857770f5e549aaa5be6ef",
+          "dirty": false
+        },
+        "config": {
+          "env": {
+            "ctrl_dt": 0.05,
+            "env_name": "MyoUserUniversal",
+            "eval_mode": true,
+            "model_path": "myosuite/envs/myo/assets/arm/mobl_arms_index_universal_myouser.xml",
+            "muscle_config": {
+              "control_type": "default",
+              "muscle_condition": null,
+              "noise_params": {
+                "constantnoise_level": 0.185,
+                "constantnoise_type": null,
+                "sigdepnoise_level": 0.103,
+                "sigdepnoise_type": null
+              },
+              "sex": null
+            },
+            "sim_dt": 0.002,
+            "task_config": {
+              "dwell_duration": 0.25,
+              "enable_extra_dist": true,
+              "exponential_reach_reward": false,
+              "max_duration": 4.0,
+              "max_trials": 1,
+              "obs_keys": [
+                "qpos",
+                "qvel",
+                "qacc",
+                "ee_pos",
+                "act"
+              ],
+              "omni_keys": [
+                "target_pos",
+                "target_size",
+                "phase"
+              ],
+              "reach_metric": 10.0,
+              "reach_settings": {
+                "ref_site": "humphant",
+                "target_origin_rel": [
+                  0.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "reset_type": "range_uniform",
+              "show_all_targets": true,
+              "target_init_seed": 15,
+              "targets": {
+                "num_targets": 4,
+                "target_0": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -1.5707963267948966,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.42,
+                    -0.15,
+                    0.01
+                  ],
+                  "rgb": [
+                    0.8,
+                    0.1,
+                    0.1
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                },
+                "target_1": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -1.5707963267948966,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.42,
+                    0.15,
+                    0.01
+                  ],
+                  "rgb": [
+                    0.1,
+                    0.8,
+                    0.1
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                },
+                "target_2": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -1.5707963267948966,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.42,
+                    -0.15,
+                    -0.29
+                  ],
+                  "rgb": [
+                    0.1,
+                    0.1,
+                    0.8
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                },
+                "target_3": {
+                  "completion_bonus": 0.0,
+                  "euler": [
+                    0.0,
+                    -1.5707963267948966,
+                    0.0
+                  ],
+                  "geom_margin": 0.001,
+                  "geom_size": [
+                    0.025,
+                    0.025,
+                    0.01
+                  ],
+                  "min_touch_force": 1.0,
+                  "name": "button_target",
+                  "position": [
+                    0.42,
+                    0.15,
+                    -0.29
+                  ],
+                  "rgb": [
+                    0.8,
+                    0.8,
+                    0.1
+                  ],
+                  "site_pos": [
+                    0.0,
+                    0.0,
+                    0.01
+                  ],
+                  "site_size": [
+                    0.02,
+                    0.02,
+                    0.01
+                  ]
+                }
+              },
+              "weighted_reward_keys": {
+                "done": 10.0,
+                "jac_effort": 0.0,
+                "neural_effort": 0.001,
+                "phase_bonus": 0.0,
+                "reach": 1.0
+              }
+            },
+            "vision": {
+              "enabled": false
+            }
+          },
+          "rl": {
+            "action_repeat": 1,
+            "batch_size": 128,
+            "clipping_epsilon": 0.3,
+            "discounting": 0.97,
+            "entropy_cost": 0.001,
+            "episode_length": 80,
+            "learning_rate": 0.0003,
+            "load_checkpoint_path": "None",
+            "log_training_metrics": true,
+            "max_grad_norm": 1.0,
+            "network_factory": {
+              "policy_hidden_layer_sizes": [
+                128,
+                128,
+                128,
+                128
+              ],
+              "value_hidden_layer_sizes": [
+                256,
+                256,
+                256,
+                256,
+                256
+              ]
+            },
+            "normalize_observations": true,
+            "num_checkpoints": 1,
+            "num_envs": 1024,
+            "num_evals": 1,
+            "num_minibatches": 8,
+            "num_resets_per_eval": 1,
+            "num_timesteps": 0,
+            "num_updates_per_batch": 8,
+            "reward_scaling": 0.1,
+            "training_metrics_steps": 100000,
+            "unroll_length": 10
+          },
+          "run": {
+            "deterministic_rscope": true,
+            "domain_randomization": false,
+            "eval_episodes": 10,
+            "eval_seed": 123,
+            "local_plotting": false,
+            "log_wandb_videos": true,
+            "play_only": false,
+            "rscope_envs": null,
+            "seed": 0,
+            "suffix": null,
+            "use_tb": false,
+            "using_gradio": true
+          },
+          "vision": {
+            "enabled": false
+          },
+          "wandb": {
+            "enabled": false
+          }
+        },
+        "config_sha256": "59e3000dd67dd6626a4671c383c4d1a0421556ecd2ac9b2f90f16d2fb6924ca9",
+        "restore": {
+          "mode": "evaluation",
+          "checkpoint_path": null,
+          "checkpoint_sha256": null,
+          "optimizer_state_restored": false,
+          "training_step_restored": false
+        },
+        "seeds": {
+          "seed": 0,
+          "eval_seed": 123
+        },
+        "runtime": {
+          "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+          "platform": "Windows-11-10.0.26300-SP0",
+          "packages": {
+            "MyoSuite": "2.8.3",
+            "numpy": "2.5.4",
+            "scipy": "1.18.1",
+            "jax": "0.5.3",
+            "jaxlib": "0.5.3",
+            "mujoco": "3.3.5",
+            "mujoco-mjx": "3.3.5",
+            "playground": "0.0.5",
+            "brax": "0.12.4",
+            "flax": "0.10.6",
+            "optax": "0.2.4",
+            "orbax-checkpoint": "0.11.21",
+            "gradio": "5.50.0"
+          },
+          "backend": "cpu",
+          "devices": [
+            "TFRT_CPU_0"
+          ],
+          "environment": {}
+        }
+      },
+      "summary": {
+        "episodes": [
+          {
+            "success": false,
+            "duration_seconds": 0.09999994188547134,
+            "steps": 2,
+            "reward": -3.5769622325897217,
+            "reward_components": {
+              "distance_reward": -3.5769622325897217,
+              "phase_bonus_reward": 0.0,
+              "done_reward": 0.0,
+              "neural_effort_reward": 0.0,
+              "jac_effort_reward": 0.0
+            },
+            "max_reward_decomposition_error": 0.0
+          }
+        ],
+        "success_rate": 0.0,
+        "mean_duration_seconds": 0.09999994188547134,
+        "mean_reward": -3.5769622325897217,
+        "mean_reward_components": {
+          "distance_reward": -3.5769622325897217,
+          "phase_bonus_reward": 0.0,
+          "done_reward": 0.0,
+          "neural_effort_reward": 0.0,
+          "jac_effort_reward": 0.0
+        }
+      },
+      "movement_metrics": {
+        "status": "unavailable",
+        "reason": "Movement metrics are supplied by upstream PR #3."
+      }
+    }
+  ]
+}

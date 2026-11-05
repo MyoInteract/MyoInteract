@@ -4,7 +4,7 @@ name = "MyoSuite"
 dynamic = ["version"]  # Enable dynamic version
 description = "Musculoskeletal environments simulated in MuJoCo"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11,<3.13"
 license = { text = "Apache 2.0" }
 authors = [
     { name = "Vikash Kumar", email = "vikashplus@gmail.com" },
@@ -12,7 +12,8 @@ authors = [
 ]
 urls = {Homepage = "https://sites.google.com/view/myosuite"}
 classifiers = [
-    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Operating System :: OS Independent",
@@ -31,8 +32,10 @@ dependencies = [
     "mediapy",
     "matplotlib",
     "brax==0.12.4",
-    "jax[cuda12_local]<0.6.0",
-    "playground",
+    "jax==0.5.3",
+    "playground==0.0.5",
+    "flax==0.10.6",
+    "optax==0.2.4",
     "Pillow",
     "pink-noise-rl",
     "packaging",
@@ -44,27 +47,49 @@ dependencies = [
     "interpax", 
     "jaxopt",
     "orbax-checkpoint==0.11.21",
-    "gradio",
-    "gradio_rangeslider"
+    "gradio>=5,<6",
+    "gradio_rangeslider==0.0.8"
 
 ]
 [project.optional-dependencies]
 examples = ["mink[examples]; python_version > '3.9'"]
+cuda = ["jax[cuda12]==0.5.3; platform_system == 'Linux'"]
+cuda-local = ["jax[cuda12-local]==0.5.3; platform_system == 'Linux'"]
+test = ["pytest>=8,<10", "pytest-timeout>=2", "build>=1", "ruff>=0.11,<0.12"]
 
 [build-system]
-requires = ["setuptools>=45", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = { find = { exclude = ["myosuite.agents"] } }
+packages = { find = { include = ["myosuite*"], exclude = ["myosuite.agents", "myosuite.agents.*"] } }
 py-modules = ["myosuite_init"]
 
 [tool.setuptools.package-data]
 "myosuite" = ["**/*"]
 
+[tool.setuptools.exclude-package-data]
+"*" = ["**/__pycache__/*", "**/*.pyc", "**/*.pyo", "**/.DS_Store"]
+
 [project.scripts]
 myoapi_init = "myosuite_init:fetch_simhive"
 myoapi_clean = "myosuite_init:clean_simhive"
+myointeract-benchmark = "myosuite.benchmarks.regression:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "myosuite.version.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "myosuite/tests"]
+python_files = ["test_task_*.py", "test_training_*.py", "test_ui_*.py", "test_reproducibility.py", "test_benchmarks.py"]
+markers = [
+    "integration: runs real MuJoCo/MJX environment or PPO integration",
+    "gpu: requires a supported CUDA/Madrona runtime",
+]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = ["myosuite/envs/myo/myouser/myoarm_llc_eepos_pointing_adaptive_v101"]
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82"]

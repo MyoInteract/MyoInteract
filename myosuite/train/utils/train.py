@@ -1,4 +1,5 @@
 import os
+import copy
 import functools
 import json
 from etils import epath
@@ -22,6 +23,7 @@ from collections import defaultdict
 # from brax.training.agents.ppo import train as ppo
 
 from myosuite.train.myouser.custom_ppo import train as ppo
+from myosuite.train.myouser.custom_ppo import checkpoint as ppo_checkpoint
 from myosuite.train.myouser.custom_ppo import networks_vision_unified as networks
 from myosuite.train.utils.wrapper import wrap_myosuite_training, _maybe_wrap_env_for_evaluation
 from myosuite.envs.myo.myouser.evaluate import evaluate_policy
@@ -175,6 +177,7 @@ class ProgressEvalLogger:
                height=480,
                width=640,
                cameras=[None],
+               log_wandb=False,
                ):
     self.logdir = logdir
     if logdir is not None:
@@ -190,7 +193,17 @@ class ProgressEvalLogger:
     # self.eval_key, reset_prepare_keys = jax.random.split(eval_key)
     self.deterministic = deterministic
 
-    self.log_wandb_checkpoints = log_wandb_checkpoints
+    self.log_wandb = log_wandb
+    self.log_wandb_checkpoints = log_wandb and log_wandb_checkpoints
+
+    # A fixed-batch renderer is shared with training.  Checkpointing must not
+    # reset it between PPO updates, so vision callbacks use checkpoint-only
+    # logging and run their visual evaluation after training has finished.
+    self.eval_env = eval_env
+    if eval_env is None:
+        self.n_randomizations = None
+        self.n_episodes = 0
+        return
 
     # Prepare evaluation episodes
     self.eval_env, self.n_randomizations = _maybe_wrap_env_for_evaluation(eval_env=eval_env, seed=seed)
@@ -238,12 +251,14 @@ class ProgressEvalLogger:
         artifact.add_dir(str(self.checkpoint_path))
         artifact.save()
     
+    rollout_metrics = {}
     # Rollout trajectory
     if self.n_episodes > 0:
         jit_inference_fn = jax.jit(make_policy(params, deterministic=True))
-        rollouts = evaluate_policy(eval_env=self.eval_env, jit_inference_fn=jit_inference_fn, jit_reset=self.jit_reset, jit_step=self.jit_step, seed=self.seed, n_episodes=self.n_episodes_video)[0]
+        rollouts = evaluate_policy(eval_env=self.eval_env, jit_inference_fn=jit_inference_fn, jit_reset=self.jit_reset, jit_step=self.jit_step, seed=self.seed, n_episodes=self.n_episodes)[0]
         results = self.eval_env.eval_metrics(rollouts) #, eval_metrics_keys=self.eval_metrics_keys)
-        plot_eval_metrics(results, step=current_step)
+        if self.log_wandb:
+            plot_eval_metrics(results, step=current_step)
         rollout_metrics_keys = rollouts[0][0].metrics.keys()
         rollout_metrics = {f'eval/{k}': jp.mean(jp.array([jp.sum(jp.array([r.metrics[k] for r in rollout])) for rollout in rollouts])) for k in rollout_metrics_keys}
     
@@ -271,7 +286,8 @@ class ProgressEvalLogger:
     video_metrics = {}#self.progress_eval_video(rollouts, current_step)
 
     metrics = {**rollout_metrics, **task_metrics, **video_metrics, **training_metrics}    
-    wandb.log(metrics, step=current_step)
+    if self.log_wandb:
+        wandb.log(metrics, step=current_step)
     print({**rollout_metrics, **task_metrics})
 
     return metrics
@@ -330,6 +346,83 @@ def rscope_fn(full_states, obs, rew, done):
       f" {episode_rewards.mean():.3f} +- {episode_rewards.std():.3f}"
   )
 
+def resolve_checkpoint_path(checkpoint_path):
+    """Resolve a checkpoint root to its latest numeric step directory."""
+    path = epath.Path(checkpoint_path).resolve()
+    if not path.is_dir():
+        raise FileNotFoundError(f'Checkpoint directory does not exist: {path}')
+    if path.name == 'checkpoints':
+        steps = [child for child in path.iterdir()
+                 if child.is_dir() and child.name.isdigit()]
+        if not steps:
+            raise ValueError(f'No numbered checkpoints found in {path}')
+        return max(steps, key=lambda child: int(child.name))
+    return path
+
+
+def checkpoint_config_path(checkpoint_path):
+    """Find run configuration for a root or an individual checkpoint."""
+    path = epath.Path(checkpoint_path).resolve()
+    return (path if path.name == 'checkpoints' else path.parent) / 'config.json'
+
+
+def adapt_legacy_checkpoint_observations(env, env_cfg, checkpoint_params):
+    """Recover the witnessed duplicated omni tail in historical policies.
+
+    Older environment construction appended omni keys to a shared base list a
+    second time.  Two bundled policies were trained on that repeated feature
+    tail although their saved JSON contains only the original base list.  Only
+    an exact schema, width and three matching normalizer-statistic tails permit
+    this migration; model weights and normalizer values are never changed.
+    """
+    base_keys = ['qpos', 'qvel', 'qacc', 'ee_pos', 'act']
+    omni_keys = ['target_pos', 'target_size', 'phase']
+    if (list(env_cfg.task_config.obs_keys) != base_keys
+            or list(env_cfg.task_config.omni_keys) != omni_keys):
+        return None
+    base_size = (len(env._independent_qpos) + 2 * len(env._independent_dofs)
+                 + 3 + env._na)
+    current_size = base_size + 5
+    normalizer = checkpoint_params[0]
+    saved_size = np.asarray(normalizer.mean).shape
+    if saved_size == (current_size,):
+        return None
+    stats = [np.asarray(getattr(normalizer, field))
+             for field in ('mean', 'std', 'summed_variance')]
+    proven_duplicate = (
+        base_size == 44
+        and saved_size == (54,)
+        and float(np.asarray(normalizer.count)) > 0
+        and all(value.shape == (54,) and np.isfinite(value).all()
+                and np.array_equal(value[44:49], value[49:54]) for value in stats)
+        and np.any(stats[2][44:49] > 0)
+        and list(env.obs_keys) == base_keys + omni_keys
+    )
+    if not proven_duplicate:
+        raise ValueError(
+            f'Checkpoint observation shape {saved_size} differs from configured '
+            f'({current_size},); no verified legacy observation migration applies.'
+        )
+    migration = {
+        'kind': 'legacy_duplicated_omni_keys',
+        'configured_observation_size': current_size,
+        'checkpoint_observation_size': 54,
+        'duplicated_keys': omni_keys,
+        'evidence': 'exact repeated mean, std and summed_variance tails',
+    }
+    # This is the private configuration copied by train_or_load_checkpoint.
+    # The regular setup appends omni_keys once, yielding the saved feature list.
+    env_cfg.task_config.obs_keys = base_keys + omni_keys
+    env.obs_keys = base_keys + omni_keys + omni_keys
+    env._config.task_config.obs_keys = list(env_cfg.task_config.obs_keys)
+    with env_cfg.unlocked():
+        env_cfg.checkpoint_observation_migrations = [migration]
+    with env._config.unlocked():
+        env._config.checkpoint_observation_migrations = [migration]
+    logging.warning('Restoring verified legacy duplicated omni observations (49 -> 54).')
+    return migration
+
+
 def train_or_load_checkpoint(env_name, 
                     config,
                     eval_mode=False,
@@ -340,15 +433,22 @@ def train_or_load_checkpoint(env_name,
                     wandb_run=None,
                     log_wandb_videos=False,
                     log_wandb_checkpoints=False,
-                    vision=False,
+                    vision=None,
                     domain_randomization=False,
                     rscope_envs=None,
                     deterministic_rscope=True,
                     seed=1,):
     
-    # env_cfg = registry.get_default_config(env_name)  #default_config()
+    # Evaluation overrides and environment construction must not mutate the
+    # caller's configuration or the configuration stored beside a checkpoint.
+    config = copy.deepcopy(config)
     env_cfg = config.env
     ppo_params = config.rl
+    if vision is None:
+        vision = bool(config.vision.enabled)
+    log_wandb = bool(config.get('wandb', {}).get('enabled', False))
+    log_wandb_checkpoints = log_wandb and log_wandb_checkpoints
+    log_wandb_videos = log_wandb and log_wandb_videos
     if eval_mode:
         ppo_params.num_timesteps = 0  #only load the model, do not train
 
@@ -362,40 +462,35 @@ def train_or_load_checkpoint(env_name,
 
     # Handle checkpoint loading
     if checkpoint_path is not None:
-        # Convert to absolute path
-        ckpt_path = epath.Path(checkpoint_path).resolve()
-        if ckpt_path.is_dir() and ckpt_path.name == "checkpoints":
-            latest_ckpts = list(ckpt_path.glob("*"))
-            latest_ckpts = [ckpt for ckpt in latest_ckpts if ckpt.is_dir()]
-            latest_ckpts.sort(key=lambda x: int(x.name))
-            latest_ckpt = latest_ckpts[-1]
-            restore_checkpoint_path = latest_ckpt
-            print(f"Restoring from: {restore_checkpoint_path}")
-        else:
-            restore_checkpoint_path = ckpt_path
-            print(f"Restoring from checkpoint: {restore_checkpoint_path}")
+        restore_checkpoint_path = resolve_checkpoint_path(checkpoint_path)
+        print(f"Restoring from checkpoint: {restore_checkpoint_path}")
     else:
         print("No checkpoint path provided, not restoring from checkpoint")
         restore_checkpoint_path = None
 
-    # Set up checkpoint directory
+    if ppo_params.num_timesteps > 0 and logdir is None:
+        raise ValueError('Training requires an output logdir')
+
+    # Only an explicit output directory authorizes writing a run configuration.
+    ckpt_path = None
     if logdir is not None:
+        logdir = epath.Path(logdir).resolve()
         ckpt_path = logdir / "checkpoints"
         ckpt_path.mkdir(parents=True, exist_ok=True)
         print(f"Checkpoint path: {ckpt_path}")
     else:
         assert checkpoint_path is not None, "Either logdir or checkpoint_path must be provided"
-        print(f"Checkpoint path: {ckpt_path}")
-
-    # Save environment configuration
-    with open(ckpt_path / "config.json", "w", encoding="utf-8") as fp:
-        json.dump(config.to_dict(), fp, indent=4)
-
     if vision:
-        env_cfg.vision_mode = vision
         env_cfg.vision.render_batch_size = ppo_params.num_envs
         env_cfg.vision.num_worlds = ppo_params.num_envs
     env = registry.load(env_name, config=env_cfg)
+    if restore_checkpoint_path is not None and not vision and hasattr(env, 'obs_keys'):
+        adapt_legacy_checkpoint_observations(
+            env, env_cfg, ppo_checkpoint.load(restore_checkpoint_path)
+        )
+    if ckpt_path is not None:
+        with open(ckpt_path / "config.json", "w", encoding="utf-8") as fp:
+            json.dump(config.to_dict(), fp, indent=4)
     
 
     training_params = dict(ppo_params)
@@ -468,6 +563,8 @@ def train_or_load_checkpoint(env_name,
     eval_env = (
         None if vision else registry.load(env_name, config=env_cfg)
     )    
+    if eval_env is not None:
+        eval_env.enable_eval_mode()
     # eval_env = env
     progress_eval_logger = None
     if rscope_envs:
@@ -512,8 +609,9 @@ def train_or_load_checkpoint(env_name,
             progress_eval_logger = ProgressEvalLogger(logdir=logdir, eval_env=eval_env,
                                                                 seed=config.run.eval_seed,
                                                                 log_wandb_checkpoints=log_wandb_checkpoints,
-                                                                n_episode_runs=10,
-                                                                n_episodes_video=10,
+                                                                log_wandb=log_wandb,
+                                                                n_episode_runs=config.run.eval_episodes,
+                                                                n_episodes_video=config.run.eval_episodes,
                                                                 #ep_length=80,
                                                                 cameras=["fixed-eye", None]
                                                                 )
@@ -522,13 +620,14 @@ def train_or_load_checkpoint(env_name,
             policy_params_fn = lambda *args: None
     
     if policy_params_fn_checkpoints is None:
-        if not eval_mode:
+        if ppo_params.num_timesteps > 0:
             if progress_eval_logger is None:
                 progress_eval_logger = ProgressEvalLogger(logdir=logdir, eval_env=eval_env,
                                                                     seed=config.run.eval_seed,
                                                                     log_wandb_checkpoints=log_wandb_checkpoints,
-                                                                    n_episode_runs=10,
-                                                                    n_episodes_video=10,
+                                                                    log_wandb=log_wandb,
+                                                                    n_episode_runs=config.run.eval_episodes,
+                                                                    n_episodes_video=config.run.eval_episodes,
                                                                     #ep_length=80,
                                                                     cameras=["fixed-eye", None]
                                                                     )
@@ -570,7 +669,9 @@ def train_or_load_checkpoint(env_name,
         eval_env=eval_env,
     )
     if vision:
-        eval_env = env
+        # Keep the renderer's per-world model mapping, without training's
+        # autoreset wrapper replacing terminal physical states/rewards.
+        eval_env = env.vision_env
     eval_env.enable_eval_mode()
 
     # Make sure all checkpoints and eval videos are uploaded into wandb artifact
