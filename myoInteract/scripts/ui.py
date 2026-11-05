@@ -1,4 +1,5 @@
 import os
+import math
 
 import gradio as gr
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
@@ -1954,6 +1955,13 @@ class ConfigSaver:
             data.append(t["radio"])
         for i, t in enumerate(targets):
             box = t.get("box") or self._default_target(i)["box"]
+            if box.get("euler") is not None:
+                # Studio's explicit screen rotation overrides its legacy angle.
+                # Initialize the widget from that pose before allowing edits.
+                box = {
+                    **box,
+                    "orientation_angle": -float(box["euler"][1]) * 180 / math.pi,
+                }
             data.extend(box[key] for key in BoxParameters.fields())
         for i, t in enumerate(targets):
             sphere = t.get("sphere") or self._default_target(i)["sphere"]

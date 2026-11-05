@@ -106,8 +106,10 @@ def test_button_widget_edits_preserve_geometry_without_widgets() -> None:
     )
 
 
+@pytest.mark.parametrize("studio_import", [False, True])
 def test_gradio_form_keeps_hidden_geometry_out_of_widgets_and_preserves_resaves(
     tmp_path: Path,
+    studio_import: bool,
 ) -> None:
     # Load the real form adapter classes without importing Gradio's GPU viewer
     # setup. Their serialization and argument parsing need no UI or simulator.
@@ -133,6 +135,7 @@ def test_gradio_form_keeps_hidden_geometry_out_of_widgets_and_preserves_resaves(
     )
     namespace = {
         "os": os,
+        "math": math,
         "CONFIG_PATH": tmp_path,
         "MAX_TARGETS": 10,
         "restore_button_geometry": restore_button_geometry,
@@ -160,15 +163,32 @@ def test_gradio_form_keeps_hidden_geometry_out_of_widgets_and_preserves_resaves(
             },
         }
     )
+    if studio_import:
+        # Studio retains its legacy Y-angle control alongside the authoritative
+        # rotation of a screen-mounted button. The latter takes precedence.
+        labelled["target_1"]["box"]["orientation_angle"] = 90
     flat = saver.from_labelled_dict(labelled)
     assert len(flat) == 189
-    assert boxes.get_my_args(0, flat) == [
-        labelled["target_1"]["box"][key] for key in boxes.fields()
-    ]
+    expected_box = {
+        **labelled["target_1"]["box"],
+        "orientation_angle": 0.4 * 180 / math.pi,
+    }
+    assert boxes.get_my_args(0, flat) == [expected_box[key] for key in boxes.fields()]
     assert namespace["BMParameters"].get_my_args(flat) == list(labelled["bm"].values())
     saved = saver.to_labelled_dict(flat)
     assert saved["target_1"]["box"]["euler"] == pytest.approx([0.25, -0.4, 0.6])
     assert saved["target_1"]["box"]["box_thickness"] == [0.006, 0.012]
+
+    # Playing immediately after import must use the same pose as re-saving.
+    valid, overrides = boxes.parse_values(0, flat, saver.button_geometry.get(0))
+    assert valid
+    values = {
+        key: json.loads(value)
+        for key, value in (item.split("=", 1) for item in overrides)
+    }
+    assert values["env.task_config.targets.target_0.euler"] == pytest.approx(
+        [0.25, -0.4, 0.6]
+    )
 
     box_start = namespace["RLParameters"].num_elements + 1 + namespace["MAX_TARGETS"]
     flat[box_start + boxes.fields().index("orientation_angle")] = 30.0
