@@ -65,7 +65,11 @@ def build_env(
 
 def run_overrides(log_dir: Path) -> list[str]:
     """The Hydra overrides a run was trained with."""
-    return json.loads((log_dir / "original_hydra_config.json").read_text())
+    from myoInteract.myointeract_hydra_cli import checkpoint_task_overrides
+
+    return checkpoint_task_overrides(
+        json.loads((log_dir / "original_hydra_config.json").read_text())
+    )
 
 
 def task_overrides(args) -> tuple[list[str], list[str] | None]:
@@ -76,7 +80,9 @@ def task_overrides(args) -> tuple[list[str], list[str] | None]:
     if getattr(args, "task", None) is None:
         return run_overrides(args.log_dir), None
     task = json.loads(args.task.read_text())
-    return task["overrides"], task["changes"]
+    from myoInteract.myointeract_hydra_cli import checkpoint_task_overrides
+
+    return checkpoint_task_overrides(task["overrides"]), task["changes"]
 
 
 def paint_targets(env, config) -> list[int]:
