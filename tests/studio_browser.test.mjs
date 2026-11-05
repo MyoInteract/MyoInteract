@@ -21,6 +21,7 @@ function codecScope() {
   const scope = callback("const MODELS =", "try { const t = localStorage", { structuredClone }, "({S,DEFAULTS,MODELS,RESETS,OBS,EXTRA_REWARDS,COLORS})");
   scope.structuredClone = structuredClone;
   scope.esc = callback("const esc =", "const h =", {}, "esc");
+  scope.rewardOverride = callback("function rewardOverride(", "function toPreset()", scope, "rewardOverride");
   Object.assign(scope, callback("function presetObject(", "// The Gradio task builder", scope,
     "({presetObject,presetNumber,presetText,normalizePreset,normalizeTarget,normalizeScreen,fromPreset,hexToRgba,rgbaToHex})"));
   scope.liveTargets = () => scope.S.targets.filter((t) => !t.disabled);
@@ -127,6 +128,22 @@ test("static muscles avoid matrix recomputation/uploads; a new pose updates once
   assert.equal(s._muscles.instanceMatrix.version, initial + 1);
   assert.equal(s._muscleScratch, scratch);
   console.log(`static 128-segment muscles: 10000 checks in ${elapsed.toFixed(2)} ms, 0 redundant matrix uploads`);
+});
+
+test("rebuilding muscles remaps an unchanged live feed's activation names", () => {
+  const s = scene(), names = ["DELT1", "DELT2"];
+  s.bodies = [new THREE.Group()];
+  const muscle = (name) => ({ name, radius: 0.001, points: [[0, 0, 0, 0], [0, 0.1, 0, 0]] });
+  s._buildMuscles([muscle("DELT1"), muscle("DELT2")]);
+  s.setMuscleActivity([0, 1], names);
+  const hot = new THREE.Color();
+  s._muscles.getColorAt(1, hot);
+  s._buildMuscles([muscle("DELT2"), muscle("DELT1")]);
+  s.setMuscleActivity([0, 1], names);
+  assert.deepEqual(s._activityMap, [1, 0]);
+  const actual = new THREE.Color();
+  s._muscles.getColorAt(0, actual);
+  assert.deepEqual(actual, hot);
 });
 
 test("model requests are deduplicated and returning to the loaded model cancels a pending switch", async () => {
@@ -382,6 +399,71 @@ test("all shipped presets pass typed import and more than ten targets survive a 
   scope.fromPreset(roundTrip);
   assert.equal(scope.S.targets.length, 21);
   assert.equal(scope.S.targets[20].x[1], 0.31);
+});
+
+test("non-editor overrides survive edits, repeated imports and partial preset resets", () => {
+  const scope = codecScope(), overrides = ["env.sim_dt=0.005", "env.muscle_config.noise_params.constantnoise_level=0.1", "++custom.values=[1,2]"];
+  scope.fromPreset({ extra_overrides: [...overrides, "++env.task_config.weighted_reward_keys.action_rate=0.2"] });
+  scope.S.reward.action_rate = 0.3;
+  scope.S.task.max_duration = 7;
+  const saved = scope.toPreset();
+  assert.deepEqual(Array.from(saved.extra_overrides), [...overrides, "++env.task_config.weighted_reward_keys.action_rate=0.3"]);
+  scope.fromPreset(saved);
+  assert.deepEqual(Array.from(scope.toPreset().extra_overrides), [...overrides, "++env.task_config.weighted_reward_keys.action_rate=0.3"]);
+  scope.S.reward.action_rate = 0;
+  assert.deepEqual(Array.from(scope.toPreset().extra_overrides), [...overrides, "++env.task_config.weighted_reward_keys.action_rate=0"]);
+  scope.fromPreset({});
+  assert.deepEqual(Array.from(scope.toPreset().extra_overrides), []);
+});
+
+test("reward overrides retain their precedence relative to imported dictionary overrides", () => {
+  const scope = codecScope(), dictionary = "++env.task_config.weighted_reward_keys={action_rate:0.7}";
+  scope.fromPreset({ extra_overrides: ["++env.task_config.weighted_reward_keys.action_rate=0.2", dictionary, "env.sim_dt=0.005"] });
+  scope.S.reward.action_rate = 0.3;
+  assert.deepEqual(Array.from(scope.toPreset().extra_overrides), ["++env.task_config.weighted_reward_keys.action_rate=0.3", dictionary, "env.sim_dt=0.005"]);
+});
+
+test("zero and negative scalar rewards still override earlier dictionary settings", () => {
+  const scope = codecScope(), dictionary = "++env.task_config.weighted_reward_keys={action_rate:0.7}";
+  for (const weight of [0, -0.2, 0.3]) {
+    const scalar = `++env.task_config.weighted_reward_keys.action_rate=${weight}`;
+    scope.fromPreset({ extra_overrides: [dictionary, scalar] });
+    assert.deepEqual(Array.from(scope.toPreset().extra_overrides), [dictionary, scalar]);
+    scope.fromPreset(scope.toPreset());
+    assert.equal(scope.S.reward.action_rate, weight);
+    assert.deepEqual(Array.from(scope.toPreset().extra_overrides), [dictionary, scalar]);
+  }
+  scope.S.reward.action_rate = 0;
+  assert.deepEqual(Array.from(scope.toPreset().extra_overrides), [dictionary, "++env.task_config.weighted_reward_keys.action_rate=0"]);
+});
+
+test("draft saves coalesce drag events and flush the latest state once before page exit", () => {
+  const timers = new Map(), writes = [];
+  let next = 0, serializations = 0;
+  const scope = {
+    S: { preset: "first", screen: { image: "data:image/png;base64," + "A".repeat(2_000_000) }, targets: [] },
+    setupPayload: () => { serializations++; return JSON.stringify({ name: scope.S.preset }); },
+    localStorage: { setItem: (key, value) => writes.push([key, value]) },
+    setTimeout: (fn) => { timers.set(++next, fn); return next; }, clearTimeout: (id) => timers.delete(id),
+  };
+  const { saveDraft, flushDraft } = callback("let draftSaveTimer =", "function restoreDraft()", scope, "({saveDraft,flushDraft})");
+  const events = {}, document = { hidden: false, addEventListener: (name, fn) => { events[name] = fn; } };
+  callback('window.addEventListener("pagehide"', "if (!importSetupFromHash())", {
+    flushDraft, document, window: { addEventListener: (name, fn) => { events[name] = fn; } },
+  }, "null");
+  for (let i = 0; i < 100; i++) { scope.S.preset = `edit ${i}`; saveDraft(); }
+  assert.equal(serializations, 0); assert.equal(writes.length, 0); assert.equal(timers.size, 1);
+  [...timers.values()][0]();
+  assert.equal(serializations, 1); assert.equal(writes.length, 1); assert.equal(timers.size, 0);
+  assert.equal(JSON.parse(writes[0][1]).name, "edit 99");
+  scope.S.preset = "last edit"; saveDraft(); events.visibilitychange();
+  assert.equal(writes.length, 1);  // returning to a visible tab does not flush an edit early
+  document.hidden = true; events.visibilitychange(); events.pagehide();
+  assert.equal(writes.length, 2); assert.equal(timers.size, 0);
+  assert.equal(JSON.parse(writes[1][1]).name, "last edit");
+  scope.S.preset = "exit edit"; saveDraft(); events.pagehide();
+  assert.equal(writes.length, 3); assert.equal(JSON.parse(writes[2][1]).name, "exit edit");
+  console.log("draft persistence: 100 drag events produce 1 image serialization/storage write");
 });
 
 test("malformed and executable import fields fail before any editor state changes", () => {

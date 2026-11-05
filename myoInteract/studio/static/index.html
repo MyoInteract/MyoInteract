@@ -561,12 +561,13 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     targets: [{ type: "Sphere", x: [0.225, 0.375], y: [-0.036, 0.036], z: [-0.3, -0.3], size: [0.01, 0.03], dwell: 0.25, force: 1, angle: 90, color: COLORS[0] }],
     obs: { qpos: true, qvel: true, qacc: true, ee_pos: true, act: true, MA: false, MR: false, MF: false, rgb: false, depth: false, target_pos: true, target_size: true, phase_progress: true, dwell_fraction: true },
     reward: Object.fromEntries(REWARDS.map((r) => [r[0], r[1]])),
+    extraOverrides: [],
     rl: { steps: 10_000_000, envs: 1024, unroll: 10, minibatches: 8, epochs: 8, ckpt: 30, seed: 14 },
     run: null, preview: null, evalJob: null, runs: [], presets: [], sel: null, clip: null, viewer: null,
     view: "perspective", stepOpen: true, row: null, rowClip: null, clipKind: null, showReach: true, showMuscles: true, showSkin: true, mode: "translate", screen: null, live: null, liveSocket: null, liveStatus: "",
     examples: [], exampleSel: null, replay: null, sim: null, evalMode: "live", evalMetric: "success", evalTask: "trained", paused: false,
   };
-  const DEFAULTS = structuredClone({ bm: S.bm, task: S.task, obs: S.obs, reward: S.reward, rl: S.rl, targets: S.targets });
+  const DEFAULTS = structuredClone({ bm: S.bm, task: S.task, obs: S.obs, reward: S.reward, extraOverrides: S.extraOverrides, rl: S.rl, targets: S.targets });
   // "This machine" and "Lab server" are one option now; wide screens remember a folded step panel, phones open it.
   try { const t = localStorage.getItem("studio-target"), target = { "This machine": "My GPU machine", "Lab server": "My GPU machine" }[t] || t; if (target && TARGETS[target]) S.target = target; S.stepOpen = matchMedia("(max-width: 1100px)").matches || localStorage.getItem("studio-step-open") !== "0"; } catch (e) {}
   // Phones and tablets cannot run the backend themselves: "My GPU machine" is off there and Colab the default.
@@ -1954,6 +1955,10 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   }
 
   /* ---------------------------------------------------------------- summary + config */
+  function rewardOverride(override) {
+    const m = override.match(/^(?:\+\+?)?env\.task_config\.weighted_reward_keys\.(\w+)=([-+\d.eE]+)$/);
+    return m && EXTRA_REWARDS.includes(m[1]) ? m : null;
+  }
   function toPreset() {
     const tgt = {};
     const on = liveTargets();
@@ -1966,6 +1971,16 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
         sphere: { x_range: [...t.x], y_range: [...t.y], z_range: [...t.z], size_range: [...t.size], dwell_duration: t.dwell, rgb },
       };
     }
+    const overrides = [], seenRewards = new Set();
+    for (const override of S.extraOverrides) {
+      const m = rewardOverride(override);
+      if (!m) overrides.push(override);
+      else {
+        seenRewards.add(m[1]);
+        overrides.push(`++env.task_config.weighted_reward_keys.${m[1]}=${S.reward[m[1]]}`);
+      }
+    }
+    for (const key of EXTRA_REWARDS) if (S.reward[key] > 0 && !seenRewards.has(key)) overrides.push(`++env.task_config.weighted_reward_keys.${key}=${S.reward[key]}`);
     return {
       rl: { "Number of Total Training Steps": S.rl.steps, "Checkpoint Interval (in Number of Training Iterations)": S.rl.ckpt, "Number of Parallel Environments": S.rl.envs, "Unroll Length": S.rl.unroll, "Number of Minibatches": S.rl.minibatches, "Number of Epochs Per Update": S.rl.epochs, "Target Initial Seed": S.rl.seed },
       num_targets: on.length,
@@ -1977,7 +1992,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
         qacc: OBS.vision.map(([k]) => S.obs[k]), ee_pos: OBS.task.map(([k]) => S.obs[k]),
       },
       reward: Object.fromEntries(Object.entries(S.reward).filter(([k]) => !EXTRA_REWARDS.includes(k))),
-      extra_overrides: EXTRA_REWARDS.filter((k) => S.reward[k] > 0).map((k) => `++env.task_config.weighted_reward_keys.${k}=${S.reward[k]}`),
+      extra_overrides: overrides,
     };
   }
   function presetObject(value, path) {
@@ -2085,8 +2100,9 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     }
     if (p.extra_overrides !== undefined && !Array.isArray(p.extra_overrides)) throw new Error("extra_overrides must be an array of text");
     for (const [i, override] of (p.extra_overrides ?? []).entries()) {
-      const o = presetText(override, `extra_overrides[${i}]`), m = o.match(/^(?:\+\+?)?env\.task_config\.weighted_reward_keys\.(\w+)=([-+\d.eE]+)$/);
-      if (m && EXTRA_REWARDS.includes(m[1])) out.reward[m[1]] = presetNumber(Number(m[2]), `extra_overrides[${i}]`);
+      const o = presetText(override, `extra_overrides[${i}]`), m = rewardOverride(o);
+      if (m) out.reward[m[1]] = presetNumber(Number(m[2]), `extra_overrides[${i}]`);
+      out.extraOverrides.push(o);
     }
     if (p.obs !== undefined) {
       const obs = presetObject(p.obs, "obs");
@@ -2193,7 +2209,17 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     return true;
   }
   // The screen (its image included) is kept with the draft; if it does not fit the browser's storage, the setup alone is.
+  // Dragging a target or screen can emit many changes per frame. Serialize its image and write
+  // synchronous browser storage after the edits settle, keeping the latest state on page exit.
+  let draftSaveTimer = null;
   function saveDraft() {
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = setTimeout(flushDraft, 250);
+  }
+  function flushDraft() {
+    if (draftSaveTimer === null) return;
+    clearTimeout(draftSaveTimer);
+    draftSaveTimer = null;
     const draft = JSON.parse(setupPayload());
     try { localStorage.setItem("studio-draft", JSON.stringify({ ...draft, screen: S.screen, targets: S.targets })); }
     catch (e) { try { localStorage.setItem("studio-draft", JSON.stringify({ ...draft, targets: S.targets })); } catch (e2) {} }
@@ -2488,6 +2514,8 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   $("reset-setup").addEventListener("click", () => { $("reset-confirm").hidden = false; });
   $("reset-no").addEventListener("click", () => { $("reset-confirm").hidden = true; });
   $("reset-yes").addEventListener("click", () => { $("reset-confirm").hidden = true; resetSetup(); });
+  window.addEventListener("pagehide", flushDraft);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) flushDraft(); });
   if (!importSetupFromHash()) restoreDraft();
   render();
   initScene();

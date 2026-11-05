@@ -290,6 +290,7 @@ export class StudioScene extends EventTarget {
     this._segments = [];
     this._muscleNames = muscles.map((m) => (m.name || "").split("/").pop());  // unnamed muscles keep their rest colour
     this._activityMap = null;
+    this._activityNames = null;
     muscles.forEach((m, j) => {
       for (let k = 1; k < m.points.length; k++) this._segments.push([m.points[k - 1], m.points[k], m.radius, j]);
     });
