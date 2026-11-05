@@ -9,8 +9,6 @@
 
 <p align="center">
   <a href="https://myointeract.github.io/studio/promo.mp4"><img src="docs/media/promo_preview.webp" alt="MyoInteract in 34 seconds: muscle-driven arms typing on a phone, pressing display buttons and using AR widgets; placing targets, importing a Figma design, training and monitoring muscles and joints in MyoInteract Studio" width="800"></a>
-  <br>
-  <a href="https://myointeract.github.io/studio/promo.mp4"><b>▶ Watch the video with sound (34 s)</b></a>
 </p>
 
 MyoInteract is the stable, maintained release (v1.0) of the framework introduced in
