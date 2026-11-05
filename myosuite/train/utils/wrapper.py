@@ -186,11 +186,62 @@ class MadronaWrapper:
 
   def reset(self, rng: jax.Array) -> State:
     """Resets the environment to an initial state."""
-    return self._env.reset(rng)
+    state = self._call_with_model_restored(self._env.reset, rng)
+    state.info['_madrona_world_id'] = jp.arange(rng.shape[0], dtype=jp.int32)
+    return state
 
   def step(self, state: State, action: jax.Array) -> State:
     """Run one timestep of the environment's dynamics."""
-    return self._env.step(state, action)
+    return self._call_with_model_restored(self._env.step, state, action)
+
+  def _call_with_model_restored(self, function, *args):
+    # Playground installs a per-world model on the raw environment while
+    # tracing its vmap.  Leaving that BatchTracer there leaks it into a later
+    # autoreset or evaluation trace.  The compiled operations already capture
+    # the mapped model; restore the Python object when that scope has ended.
+    raw_env = self._env.unwrapped
+    model = raw_env._mjx_model
+    try:
+      return function(*args)
+    finally:
+      raw_env._mjx_model = model
+
+  def auto_reset(self, state: State) -> State:
+    """Reset one mapped world using the same model as its training steps."""
+    world_id = state.info['_madrona_world_id']
+    model = jax.tree_util.tree_map(
+        lambda value, axis: value[world_id] if axis == 0 else value,
+        self._env._mjx_model_v, self._env._in_axes,
+        is_leaf=lambda value: value is None,
+    )
+
+    def reset():
+      raw_env = self._env.unwrapped
+      raw_env._mjx_model = model
+      next_state = raw_env.auto_reset(state)
+      next_state.info['_madrona_world_id'] = world_id
+      return next_state
+
+    return self._call_with_model_restored(reset)
+
+  def eval_reset(self, rng: jax.Array, eval_id: jax.Array,
+                 predefined_evals: bool = True) -> State:
+    """Map reset keys and all renderer model buffers over the fixed batch."""
+    def reset(model, key, index):
+      raw_env = self._env.unwrapped
+      raw_env._mjx_model = model
+      if predefined_evals:
+        return raw_env.eval_reset(key, index)
+      return raw_env.reset(key)
+
+    def mapped_reset():
+      return jax.vmap(reset, in_axes=[self._env._in_axes, 0, 0])(
+          self._env._mjx_model_v, rng, eval_id
+      )
+
+    state = self._call_with_model_restored(mapped_reset)
+    state.info['_madrona_world_id'] = jp.arange(rng.shape[0], dtype=jp.int32)
+    return state
 
   def __getattr__(self, name):
     """Delegate attribute access to the wrapped instance."""
@@ -227,13 +278,46 @@ class EpisodeWrapper(Wrapper):
     return state
 
   def step(self, state: State, action: jax.Array) -> State:
-    def f(state, _):
-      nstate = self.env.step(state, action)
-      return nstate, nstate.reward
+    if self.action_repeat == 1:
+      # Keep the normal training path free of repeat masking/tree selections.
+      state = self.env.step(state, action)
+      rewards = jp.expand_dims(state.reward, 0)
+      steps_taken = jp.ones_like(state.done)
+      accumulated_metrics = state.metrics
+    else:
+      initial_steps = state.info['steps']
 
-    state, rewards = jax.lax.scan(f, state, (), self.action_repeat)
+      def f(carry, _):
+        current, active, count = carry
+        active = active & (initial_steps + count < self.episode_length)
+        candidate = self.env.step(current, action)
+
+        def select(new, old):
+          mask = active.reshape(active.shape + (1,) * (new.ndim - active.ndim))
+          return jp.where(mask, new, old)
+
+        # Freeze each world at its first terminal state.  Later repeated
+        # actions contribute neither rewards, metrics nor episode steps.
+        next_state = jax.tree_util.tree_map(select, candidate, current)
+        reward = jp.where(active, candidate.reward, jp.zeros_like(candidate.reward))
+        metrics = jax.tree_util.tree_map(
+            lambda value: select(value, jp.zeros_like(value)), candidate.metrics
+        )
+        count += active.astype(jp.int32)
+        active = active & (next_state.done == 0)
+        return (next_state, active, count), (reward, metrics)
+
+      (state, _, steps_taken), (rewards, metric_steps) = jax.lax.scan(
+          f,
+          (state, jp.ones_like(state.done, dtype=jp.bool_),
+           jp.zeros_like(state.done, dtype=jp.int32)),
+          (), self.action_repeat,
+      )
+      accumulated_metrics = jax.tree_util.tree_map(
+          lambda values: jp.sum(values, axis=0), metric_steps
+      )
     state = state.replace(reward=jp.sum(rewards, axis=0))
-    steps = state.info['steps'] + self.action_repeat
+    steps = state.info['steps'] + steps_taken
     one = jp.ones_like(state.done)
     zero = jp.zeros_like(state.done)
     episode_length = jp.array(self.episode_length, dtype=jp.int32)
@@ -245,17 +329,20 @@ class EpisodeWrapper(Wrapper):
 
     # Aggregate state metrics into episode metrics
     prev_done = state.info['episode_done']
-    state.info['episode_metrics']['sum_reward'] += jp.sum(rewards, axis=0)
-    state.info['episode_metrics']['sum_reward'] *= (1 - prev_done)
-    state.info['episode_metrics']['length'] += self.action_repeat
-    state.info['episode_metrics']['length'] *= (1 - prev_done)
+    # Clear the previous episode before adding this transition.  Clearing after
+    # the addition discards the first reward and step of every later episode.
+    episode_metrics = jax.tree_util.tree_map(
+        lambda value: jp.where(prev_done, jp.zeros_like(value), value),
+        state.info['episode_metrics'],
+    )
+    episode_metrics['sum_reward'] += jp.sum(rewards, axis=0)
+    episode_metrics['length'] += steps_taken
     for metric_name in state.metrics.keys():
       if (metric_name != 'reward') and (metric_name not in self.non_accumulation_metrics):
-        state.info['episode_metrics'][metric_name] += state.metrics[metric_name]
-        state.info['episode_metrics'][metric_name] *= (1 - prev_done)
+        episode_metrics[metric_name] += accumulated_metrics[metric_name]
       if metric_name in self.non_accumulation_metrics:
-        print(f"Setting non-accumulation metric: {metric_name} to the current value")
-        state.info['episode_metrics'][metric_name] = state.metrics[metric_name]
+        episode_metrics[metric_name] = state.metrics[metric_name]
+    state.info['episode_metrics'] = episode_metrics
     state.info['episode_done'] = done
     return state.replace(done=done)
 
@@ -286,6 +373,7 @@ def wrap_myosuite_training(
     """
     if vision:
       env = MadronaWrapper(env, num_worlds=num_vision_envs, randomization_fn=randomization_fn)
+      vision_env = env
     elif randomization_fn is None:
       env = VmapWrapper(env)
     else:
@@ -293,13 +381,15 @@ def wrap_myosuite_training(
     env = EpisodeWrapper(env, episode_length, action_repeat)
     # env = AutoResetWrapper(env)
     env = BetterAutoResetWrapper(env)
-
-
+    if vision:
+      # Reuse this renderer/model mapping for evaluation, without training's
+      # episode/autoreset wrappers replacing terminal physical states.
+      env.vision_env = vision_env
     return env
 
 
 class BetterAutoResetWrapper(Wrapper):
-    """Automatically "resets" Brax envs that are done, without clearing info state."""
+    """Reset episode state while retaining the completed transition for PPO."""
     
     def step(self, state: State, action: jax.Array) -> State:
         if "steps" in state.info:
@@ -314,8 +404,19 @@ class BetterAutoResetWrapper(Wrapper):
 
         def reset_state(current_state):
           new_state = self.env.auto_reset(current_state)
-          new_state = new_state.replace(done=current_state.done, info=current_state.info, metrics=current_state.metrics)
-          return new_state
+          # Environment fields (targets, phase, controller history and RNG)
+          # belong to the fresh episode.  Only wrapper bookkeeping describes
+          # the terminal transition and is consumed by the metrics logger.
+          info = dict(new_state.info)
+          for key in ('steps', 'truncation', 'episode_done', 'episode_metrics'):
+            if key in current_state.info:
+              info[key] = current_state.info[key]
+          return new_state.replace(
+              reward=current_state.reward,
+              done=current_state.done,
+              info=info,
+              metrics=current_state.metrics,
+          )
 
 
         def compute_next_state(current_state):
@@ -381,10 +482,10 @@ class EvalVmapWrapper(Wrapper):
     self.eval_wrapped = True
 
   def eval_reset(self, rng: jax.Array, eval_id: jax.Array) -> State:
-    # TODO: make sure that this runs with n_episodes=1
     batch_size = len(eval_id)
-    if batch_size > 1:
-      rng = jax.random.split(rng, batch_size)
+    if batch_size < 1:
+      raise ValueError('Evaluation requires at least one episode')
+    rng = jax.random.split(rng, batch_size)
     if self.predefined_evals:
       if self.n_randomizations is not None:
         ## only allow for eval_id values between 0 and (self.n_randomizations - 1) in this case
@@ -395,6 +496,26 @@ class EvalVmapWrapper(Wrapper):
 
   def step(self, state: State, action: jax.Array) -> State:
     return jax.vmap(self.env.step)(state, action)
+
+
+class MadronaEvalWrapper(Wrapper):
+  """Evaluation adapter retaining fixed-world renderer model buffers."""
+
+  def __init__(self, env, n_randomizations=None, predefined_evals=True):
+    super().__init__(env)
+    self.n_randomizations = n_randomizations
+    self.predefined_evals = predefined_evals
+    self.eval_wrapped = True
+
+  def eval_reset(self, rng: jax.Array, eval_id: jax.Array) -> State:
+    if len(eval_id) != self.env.num_worlds:
+      raise ValueError(f'Madrona evaluation requires {self.env.num_worlds} reset keys')
+    if self.n_randomizations is not None:
+      eval_id = eval_id % self.n_randomizations
+    return self.env.eval_reset(
+        jax.random.split(rng, len(eval_id)), eval_id,
+        predefined_evals=self.predefined_evals,
+    )
   
 
 def _maybe_wrap_env_for_evaluation(eval_env, seed):
@@ -408,7 +529,8 @@ def _maybe_wrap_env_for_evaluation(eval_env, seed):
       predefined_evals = False
     
     if not hasattr(eval_env, "eval_wrapped"):
-      eval_env = EvalVmapWrapper(eval_env, n_randomizations=n_randomizations, predefined_evals=predefined_evals)
+      wrapper_type = MadronaEvalWrapper if isinstance(eval_env, MadronaWrapper) else EvalVmapWrapper
+      eval_env = wrapper_type(eval_env, n_randomizations=n_randomizations, predefined_evals=predefined_evals)
       assert hasattr(eval_env, "eval_wrapped")
     
     return eval_env, n_randomizations
