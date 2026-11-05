@@ -51,7 +51,8 @@ It builds on [MyoSuite](https://github.com/MyoHub/myosuite) (musculoskeletal mod
 ## New in v1.0 since the paper
 
 The paper's code is the beta version, kept on the [`beta` branch](https://github.com/MyoInteract/MyoInteract/tree/beta)
-of this repository (**deprecated**; kept for reference). This release adds:
+of this repository (**deprecated** and not maintained). It runs on MJX (JAX and Brax) instead of mjlab, in case you
+need that backend. This release adds:
 
 - **MyoInteract Studio**, a web app that replaces the notebook as the main entry point: targets are placed and
   resized directly in a 3D scene of the body model, and training curves, a live view of the policy and
