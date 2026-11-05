@@ -15,6 +15,9 @@ Verifies that:
 from __future__ import annotations
 
 import json
+import math
+import ast
+import os
 from pathlib import Path
 
 import pytest
@@ -24,11 +27,194 @@ from ml_collections import ConfigDict
 # Helpers under test
 # ---------------------------------------------------------------------------
 from myoInteract.myointeract_hydra_cli import (
+    button_geometry,
     extra_hydra_overrides,
     gradio_json_to_overrides,
     load_config_interactive,
+    restore_button_geometry,
     training_config_to_labelled_dict,
 )
+
+
+def _rebuild_target(target: dict) -> dict:
+    config = {
+        "env": {"task_config": {"targets": {"num_targets": 1, "target_0": target}}}
+    }
+    labelled = training_config_to_labelled_dict(config)
+    overrides = gradio_json_to_overrides(labelled) + extra_hydra_overrides(config)
+    return load_config_interactive(overrides).env.task_config.targets.target_0.to_dict()
+
+
+def test_fixed_sphere_position_survives_training_config_conversion() -> None:
+    target = {
+        "name": "pointing_target",
+        "position": [0.45, -0.12, 0.07],
+        "size": [0.03, 0.05],
+    }
+    reloaded = _rebuild_target(target)
+    assert reloaded["position"] == [target["position"], target["position"]]
+    assert reloaded["size"] == target["size"]
+
+
+@pytest.mark.parametrize("ranged", [False, True])
+@pytest.mark.parametrize("fixed_position", [False, True])
+def test_button_rotation_and_depth_survive_training_config_conversion(
+    ranged: bool, fixed_position: bool
+) -> None:
+    target = {
+        "name": "button_target",
+        "position": [0.4, -0.1, 0.2]
+        if fixed_position
+        else [[0.4, -0.1, 0.2], [0.45, -0.05, 0.25]],
+        "size": [[0.03, 0.04, 0.003], [0.04, 0.05, 0.006]]
+        if ranged
+        else [0.03, 0.04, 0.003],
+        "euler": [0.25, -0.4, 0.6],
+        "min_touch_force": 2.5,
+    }
+    reloaded = _rebuild_target(target)
+    assert reloaded["euler"] == pytest.approx(target["euler"])
+    assert reloaded["position"] == (
+        [target["position"], target["position"]]
+        if fixed_position
+        else target["position"]
+    )
+    assert reloaded["size"] == (
+        target["size"] if ranged else [target["size"], target["size"]]
+    )
+    assert reloaded["min_touch_force"] == target["min_touch_force"]
+
+
+def test_button_widget_edits_preserve_geometry_without_widgets() -> None:
+    stored = {"euler": [0.25, -0.4, 0.6], "box_thickness": [0.006, 0.012]}
+    live = {
+        "orientation_angle": 30.0,
+        "box_size_x": [0.1, 0.15],
+        "box_size_y": [0.2, 0.25],
+    }
+    box = restore_button_geometry(live, stored)
+    euler, depth = button_geometry(box)
+    assert euler == pytest.approx([0.25, -math.pi / 6, 0.6])
+    assert depth == [0.003, 0.006]
+    assert box["box_size_x"] == live["box_size_x"]
+    assert box["box_size_y"] == live["box_size_y"]
+    assert "euler" not in live
+    assert stored["euler"] == [0.25, -0.4, 0.6]
+    assert button_geometry(restore_button_geometry(live, {})) == (
+        [0, -math.pi / 6, 0],
+        [0.01, 0.01],
+    )
+
+
+@pytest.mark.parametrize("studio_import", [False, True])
+def test_gradio_form_keeps_hidden_geometry_out_of_widgets_and_preserves_resaves(
+    tmp_path: Path,
+    studio_import: bool,
+) -> None:
+    # Load the real form adapter classes without importing Gradio's GPU viewer
+    # setup. Their serialization and argument parsing need no UI or simulator.
+    source = Path(__file__).resolve().parents[1] / "myoInteract/scripts/ui.py"
+    classes = {
+        "ConfigSaver",
+        "BoxParameters",
+        "SphereParameters",
+        "BMParameters",
+        "TaskParameters",
+        "ObservationSpace",
+        "RewardFunction",
+        "RLParameters",
+    }
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    module = ast.Module(
+        body=[
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name in classes
+        ],
+        type_ignores=[],
+    )
+    namespace = {
+        "os": os,
+        "math": math,
+        "CONFIG_PATH": tmp_path,
+        "MAX_TARGETS": 10,
+        "restore_button_geometry": restore_button_geometry,
+        "button_geometry": button_geometry,
+        "hex_to_rgb": lambda _value: [0.8, 0.1, 0.1],
+    }
+    exec(compile(module, str(source), "exec"), namespace)
+    saver = namespace["ConfigSaver"]()
+    boxes = namespace["BoxParameters"]
+    boxes.sanity_check_args = staticmethod(lambda *_args: True)
+    labelled = training_config_to_labelled_dict(
+        {
+            "env": {
+                "task_config": {
+                    "targets": {
+                        "num_targets": 1,
+                        "target_0": {
+                            "name": "button_target",
+                            "position": [[0.4, -0.1, 0.2], [0.4, -0.1, 0.2]],
+                            "size": [[0.03, 0.04, 0.003], [0.04, 0.05, 0.006]],
+                            "euler": [0.25, -0.4, 0.6],
+                        },
+                    }
+                }
+            },
+        }
+    )
+    if studio_import:
+        # Studio retains its legacy Y-angle control alongside the authoritative
+        # rotation of a screen-mounted button. The latter takes precedence.
+        labelled["target_1"]["box"]["orientation_angle"] = 90
+    flat = saver.from_labelled_dict(labelled)
+    assert len(flat) == 189
+    expected_box = {
+        **labelled["target_1"]["box"],
+        "orientation_angle": 0.4 * 180 / math.pi,
+    }
+    assert boxes.get_my_args(0, flat) == [expected_box[key] for key in boxes.fields()]
+    assert namespace["BMParameters"].get_my_args(flat) == list(labelled["bm"].values())
+    saved = saver.to_labelled_dict(flat)
+    assert saved["target_1"]["box"]["euler"] == pytest.approx([0.25, -0.4, 0.6])
+    assert saved["target_1"]["box"]["box_thickness"] == [0.006, 0.012]
+
+    # Playing immediately after import must use the same pose as re-saving.
+    valid, overrides = boxes.parse_values(0, flat, saver.button_geometry.get(0))
+    assert valid
+    values = {
+        key: json.loads(value)
+        for key, value in (item.split("=", 1) for item in overrides)
+    }
+    assert values["env.task_config.targets.target_0.euler"] == pytest.approx(
+        [0.25, -0.4, 0.6]
+    )
+
+    box_start = namespace["RLParameters"].num_elements + 1 + namespace["MAX_TARGETS"]
+    flat[box_start + boxes.fields().index("orientation_angle")] = 30.0
+    flat[box_start + boxes.fields().index("box_size_x")] = [0.1, 0.15]
+    valid, overrides = boxes.parse_values(0, flat, saver.button_geometry.get(0))
+    assert valid
+    values = {
+        key: json.loads(value)
+        for key, value in (item.split("=", 1) for item in overrides)
+    }
+    assert values["env.task_config.targets.target_0.euler"] == pytest.approx(
+        [0.25, -math.pi / 6, 0.6]
+    )
+    assert values["env.task_config.targets.target_0.size"] == [
+        [0.05, 0.04, 0.003],
+        [0.075, 0.05, 0.006],
+    ]
+    saved = saver.to_labelled_dict(flat)
+    assert saved["target_1"]["box"]["euler"] == pytest.approx([0.25, -math.pi / 6, 0.6])
+
+    # Loading an ordinary preset clears the previous policy's hidden geometry.
+    del labelled["target_1"]["box"]["euler"]
+    del labelled["target_1"]["box"]["box_thickness"]
+    flat = saver.from_labelled_dict(labelled)
+    assert saver.button_geometry[0] == {}
+    assert "euler" not in saver.to_labelled_dict(flat)["target_1"]["box"]
 
 
 # ---------------------------------------------------------------------------
