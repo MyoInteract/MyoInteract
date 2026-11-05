@@ -113,13 +113,13 @@ def test_viewer_needs_a_preset_or_a_known_run(client: TestClient) -> None:
     )  # proxied viewer page: nothing running yet
 
 
-def test_converter_reads_the_total_steps_and_the_v2_models() -> None:
+def test_converter_reads_the_total_steps_and_the_body_model() -> None:
     preset = json.loads(json.dumps(POINTING))
     preset["rl"]["Number of Total Training Steps"] = 1_234_000
-    preset["bm"]["bm_model"] = "MoBL_Arms_Index_v2.2"
+    preset["bm"]["bm_model"] = "MoBL_Arms_Hand"
     overrides = gradio_json_to_overrides(preset)
     assert "rl.num_timesteps=1234000" in overrides
-    assert any("mobl_arms_index_v2.2_universal" in o for o in overrides)
+    assert any("mobl_arms_hand_universal" in o for o in overrides)
 
 
 def test_metrics_turn_termination_counts_into_a_success_rate(tmp_path: Path) -> None:
