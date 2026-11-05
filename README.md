@@ -86,6 +86,10 @@ myo_play          # or the Gradio task builder
 myo_train --help  # or train from the command line
 ```
 
+Play a saved policy with `myo_train --play --checkpoint-file path/to/model_final.onnx`.
+Add `--viewer native` or `--viewer viser` to choose the viewer. `--play` is a switch;
+the older `--play True` form is also accepted.
+
 Extras: `ui` (Gradio), `mjlab` (GPU training stack), `rl` (Weights & Biases, optional), `studio` (Studio backend), `all` (all of them),
 `colab` (what Colab installs). The configs and models
 (`myo_config/`, `myo_user/`) are part of the package. When you run the UI from a pip install, checkpoints
