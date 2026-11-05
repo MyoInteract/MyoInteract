@@ -1,3 +1,7 @@
+> **This branch is deprecated.** It holds the beta version of MyoInteract that accompanies the paper (DIS 2026).
+> The maintained, stable version is on the [`main` branch](https://github.com/MyoInteract/MyoInteract), and the easiest
+> way in is [MyoInteract Studio](https://myointeract.github.io/studio/) in your browser.
+
 # MyoInteract (Beta)
 
 This repository contains a beta version of the research code for MyoInteract.
