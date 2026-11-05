@@ -18,6 +18,12 @@ See: https://arxiv.org/pdf/1707.06347.pdf
 """
 
 import functools
+import hashlib
+from importlib import metadata as package_metadata
+import inspect
+import os
+from pathlib import Path
+import platform
 import time
 from typing import Any, Callable, Mapping, Optional, Tuple, Union
 
@@ -32,6 +38,7 @@ from brax.training import types
 from brax.training.acme import running_statistics
 from brax.training.acme import specs
 from myosuite.train.myouser.custom_ppo import checkpoint
+from myosuite.train.myouser.custom_ppo import resume
 from myosuite.train.myouser.custom_ppo import losses as ppo_losses
 from myosuite.train.myouser.custom_ppo import networks_vision_unified as ppo_networks
 from brax.training.types import Params
@@ -71,6 +78,95 @@ def _strip_weak_type(tree):
     return leaf.astype(leaf.dtype)
 
   return jax.tree_util.tree_map(f, tree)
+
+
+def _resume_value(value):
+  """Describe configuration and callables without serializing executable code."""
+  if value is None or isinstance(value, (str, bool, int, float)):
+    return value
+  if isinstance(value, np.generic):
+    return value.item()
+  if isinstance(value, Mapping):
+    return {str(key): _resume_value(item) for key, item in value.items()}
+  if isinstance(value, (tuple, list)):
+    return [_resume_value(item) for item in value]
+  if isinstance(value, (np.ndarray, jax.Array)):
+    array = np.asarray(value)
+    return {'array_shape': list(array.shape), 'array_dtype': str(array.dtype),
+            'array_sha256': hashlib.sha256(array.tobytes()).hexdigest()}
+  if isinstance(value, functools.partial):
+    return {'function': _resume_value(value.func),
+            'args': _resume_value(value.args),
+            'keywords': _resume_value(value.keywords)}
+  if callable(value):
+    if inspect.ismethod(value) or not (
+        inspect.isfunction(value) or inspect.isclass(value) or inspect.isbuiltin(value)
+    ):
+      raise ValueError(
+          'Exact resume requires plain functions or functools.partial callables; '
+          'bound methods and callable instances can contain untracked state.'
+      )
+    description = {'module': getattr(value, '__module__', type(value).__module__),
+                   'name': getattr(value, '__qualname__', type(value).__qualname__)}
+    try:
+      description['source_sha256'] = hashlib.sha256(
+          inspect.getsource(value).encode('utf-8')
+      ).hexdigest()
+    except (OSError, TypeError):
+      if inspect.isfunction(value):
+        # Dynamically defined factories may have no source file. Hash their
+        # code as data; no executable content is restored from the snapshot.
+        import marshal
+        description['bytecode_sha256'] = hashlib.sha256(
+            marshal.dumps(value.__code__)
+        ).hexdigest()
+      # Builtins are covered by the exact runtime dependency versions.
+    if inspect.isfunction(value):
+      description['defaults'] = _resume_value(value.__defaults__)
+      description['keyword_defaults'] = _resume_value(value.__kwdefaults__)
+      if value.__closure__:
+        description['closure'] = {
+            name: _resume_value(cell.cell_contents)
+            for name, cell in zip(value.__code__.co_freevars, value.__closure__)
+        }
+    return description
+  raise ValueError(f'Exact-resume configuration is not serializable: {type(value).__name__}')
+
+
+def _resume_implementation_digest():
+  """Identify learning/environment code independently of checkout location."""
+  package = Path(__file__).resolve().parents[3]
+  digest = hashlib.sha256()
+  for directory in (package / 'train', package / 'envs' / 'myo' / 'myouser'):
+    for source in sorted(directory.rglob('*.py')):
+      digest.update(source.relative_to(package).as_posix().encode('utf-8'))
+      digest.update(source.read_bytes().replace(b'\r\n', b'\n'))
+  return digest.hexdigest()
+
+
+def _resume_environment_signature(environment):
+  environment = environment.unwrapped
+  signature = {'type': _resume_value(type(environment))}
+  # Custom low-level environments should also pass resume_metadata for any
+  # private/dynamic task configuration. Public scalar settings cover toy and
+  # simple JAX environments without persisting Python objects.
+  signature['settings'] = {
+      key: _resume_value(value)
+      for key, value in getattr(environment, '__dict__', {}).items()
+      if not key.startswith('_') and isinstance(value, (str, bool, int, float, type(None)))
+  }
+  config = getattr(environment, '_config', None)
+  if config is not None:
+    signature['configuration'] = _resume_value(
+        config.to_dict() if hasattr(config, 'to_dict') else config
+    )
+  if hasattr(environment, 'mj_model'):
+    import mujoco
+    model = environment.mj_model
+    buffer = np.empty(mujoco.mj_sizeModel(model), dtype=np.uint8)
+    mujoco.mj_saveModel(model, buffer=buffer)
+    signature['model_sha256'] = hashlib.sha256(buffer.tobytes()).hexdigest()
+  return signature
 
 
 def _validate_madrona_args(
@@ -252,6 +348,9 @@ def train(
     restore_checkpoint_path: Optional[str] = None,
     restore_params: Optional[Any] = None,
     restore_value_fn: bool = True,
+    resume_training_path: Optional[str] = None,
+    save_training_state_path: Optional[str] = None,
+    resume_metadata: Optional[Mapping[str, Any]] = None,
 ):
   """PPO training.
 
@@ -324,10 +423,30 @@ def train(
       from the return values of ppo.train().
     restore_value_fn: whether to restore the value function from the checkpoint
       or use a random initialization
+    resume_training_path: a complete full-state snapshot (or its run/root), to
+      continue the original training horizon and schedule exactly. Mutually
+      exclusive with parameter warm starts. Requires the same deterministic
+      runtime, device topology, model, and training configuration.
+    save_training_state_path: optional directory for atomic full-state snapshots
+      at checkpoint boundaries and completion. Separate from inference exports.
+    resume_metadata: task configuration to check on exact resume, including any
+      private configuration not represented by public environment settings.
 
   Returns:
     Tuple of (make_policy function, network params, metrics)
   """
+  if resume_training_path is not None:
+    if restore_checkpoint_path is not None or restore_params is not None:
+      raise ValueError('Exact resume cannot be combined with a parameter warm start.')
+    if num_timesteps <= 0:
+      raise ValueError('Exact resume requires the original positive num_timesteps horizon.')
+    resume_training_path = resume.resolve(resume_training_path)
+  full_state_enabled = resume_training_path is not None or save_training_state_path is not None
+  if full_state_enabled:
+    if jax.process_count() != 1:
+      raise ValueError('Exact training snapshots currently support one JAX host process.')
+    if madrona_backend or getattr(environment, 'vision', False):
+      raise ValueError('Exact training snapshots do not yet support Madrona renderer state.')
   assert batch_size * num_minibatches % num_envs == 0
   _validate_madrona_args(
       madrona_backend, num_envs, num_eval_envs, action_repeat, eval_env
@@ -447,6 +566,53 @@ def train(
       normalize_observations=normalize_observations,
       network_factory=network_factory,
   )
+
+  compatibility = None
+  if full_state_enabled:
+    versions = {}
+    for name in ('jax', 'jaxlib', 'brax', 'flax', 'optax', 'orbax-checkpoint',
+                 'mujoco', 'mujoco-mjx', 'playground', 'numpy'):
+      versions[name] = package_metadata.version(name)
+    compatibility = _resume_value({
+        'training': {
+            'num_timesteps': num_timesteps, 'num_envs': num_envs,
+            'episode_length': episode_length, 'action_repeat': action_repeat,
+            'learning_rate': learning_rate, 'entropy_cost': entropy_cost,
+            'discounting': discounting, 'unroll_length': unroll_length,
+            'batch_size': batch_size, 'num_minibatches': num_minibatches,
+            'num_updates_per_batch': num_updates_per_batch,
+            'num_resets_per_eval': num_resets_per_eval,
+            'normalize_observations': normalize_observations,
+            'reward_scaling': reward_scaling, 'clipping_epsilon': clipping_epsilon,
+            'gae_lambda': gae_lambda, 'max_grad_norm': max_grad_norm,
+            'normalize_advantage': normalize_advantage, 'seed': seed,
+            'num_evals': num_evals, 'num_checkpoints': num_checkpoints,
+            'log_training_metrics': log_training_metrics,
+            'training_metrics_steps': training_metrics_steps,
+            'augment_pixels': augment_pixels, 'wrap_env': wrap_env,
+            'network': ckpt_config.to_dict(), 'network_factory': network_factory,
+            'wrap_env_fn': wrap_env_fn, 'randomization_fn': randomization_fn,
+            'interruptions': int(num_training_interruptions),
+            'steps_per_epoch': int(num_training_steps_per_epoch),
+        },
+        'environment': _resume_environment_signature(environment),
+        'context': dict(resume_metadata or {}),
+        'implementation_sha256': _resume_implementation_digest(),
+        'runtime': {
+            'versions': versions, 'python': platform.python_version(),
+            'os': platform.system(), 'machine': platform.machine(),
+            'processor': platform.processor(), 'backend': jax.default_backend(),
+            'platform_version': jax.local_devices()[0].client.platform_version,
+            'devices': [device.device_kind for device in jax.local_devices()[:local_devices_to_use]],
+            'device_count': device_count, 'jax_enable_x64': jax.config.jax_enable_x64,
+            'matmul_precision': str(jax.config.jax_default_matmul_precision),
+            'prng_impl': str(jax.config.jax_default_prng_impl),
+            'environment': {key: os.environ.get(key) for key in (
+                'XLA_FLAGS', 'JAX_DEFAULT_MATMUL_PRECISION',
+                'JAX_ENABLE_X64', 'NVIDIA_TF32_OVERRIDE',
+            )},
+        },
+    })
 
   def minibatch_step(
       carry,
@@ -657,6 +823,14 @@ def train(
     # print(params[1]["params"]["value_network"]["layers"].keys())
     normalizer_params = params[0]
     network_params = params[1]
+    saved_observation_shape = jnp.shape(normalizer_params.mean)
+    configured_observation_shape = jnp.shape(normalizer_init_params.mean)
+    if saved_observation_shape != configured_observation_shape:
+      raise ValueError(
+          'Checkpoint observation shape does not match the configured environment: '
+          f'{saved_observation_shape} versus {configured_observation_shape}. '
+          'Use the checkpoint observation schema; unknown mismatches cannot be padded or truncated.'
+      )
     network_params["params"]["policy_network"]["layers"] = {int(k): v for k, v in network_params["params"]["policy_network"]["layers"].items()}
     network_params["params"]["value_network"]["layers"] = {int(k): v for k, v in network_params["params"]["value_network"]["layers"].items()}
     if 'vision_aux_output' in network_params['params']:
@@ -688,6 +862,41 @@ def train(
   training_state = jax.device_put_replicated(
       training_state, jax.local_devices()[:local_devices_to_use]
   )
+  # Epoch execution already strips weak scalar types. Build restoration
+  # templates with that same stable representation before loading a snapshot.
+  training_state, env_state = _strip_weak_type((training_state, env_state))
+
+  training_walltime = 0.0
+  start_iteration = 0
+  if resume_training_path is not None:
+    template = {
+        'training_state': training_state, 'environment_state': env_state,
+        'local_key': local_key, 'reset_keys': key_envs,
+        'next_iteration': np.asarray(0, dtype=np.int64),
+        'training_walltime': np.asarray(0.0, dtype=np.float64),
+    }
+    restored, stored_metadata = resume.load(
+        resume_training_path, template, compatibility
+    )
+    training_state = restored['training_state']
+    env_state = restored['environment_state']
+    local_key = restored['local_key']
+    key_envs = restored['reset_keys']
+    start_iteration = int(restored['next_iteration'])
+    training_walltime = float(restored['training_walltime'])
+    completed_steps = int(_unpmap(training_state.env_steps))
+    expected_steps = (start_iteration * num_training_steps_per_epoch
+                      * max(num_resets_per_eval, 1) * env_step_per_training_step)
+    if (not 0 <= start_iteration <= num_training_interruptions
+        or completed_steps != expected_steps
+        or completed_steps != int(resume_training_path.name)):
+      raise ValueError('Full-state checkpoint training progress is inconsistent with its schedule.')
+    logger_state = stored_metadata.get('metrics_logger', {})
+    metrics_aggregator._num_steps = int(logger_state.get('num_steps', 0))
+    metrics_aggregator._last_log_steps = int(logger_state.get('last_log_steps', 0))
+    metrics_aggregator._log_count = int(logger_state.get('log_count', 0))
+    for name, values in logger_state.get('buffers', {}).items():
+      metrics_aggregator._metrics_buffer[name].extend(values)
 
   # eval_env = _maybe_wrap_env(
   #     eval_env or environment,
@@ -711,7 +920,7 @@ def train(
 
   # Run initial eval
   metrics = {}
-  if process_id == 0 and num_evals > 1:
+  if process_id == 0 and num_evals > 1 and resume_training_path is None:
   #   metrics = evaluator.run_evaluation(
   #       _unpmap((
   #           training_state.normalizer_params,
@@ -728,9 +937,8 @@ def train(
 
 
   training_metrics = {}
-  training_walltime = 0
-  current_step = 0
-  for it in range(num_training_interruptions):
+  current_step = int(_unpmap(training_state.env_steps))
+  for it in range(start_iteration, num_training_interruptions):
     logging.info('starting iteration %s %s', it, time.time() - xt)
 
     for _ in range(max(num_resets_per_eval, 1)):
@@ -746,7 +954,8 @@ def train(
           lambda x, s: jax.random.split(x[0], s), in_axes=(0, None)
       )(key_envs, key_envs.shape[1])
       # TODO: move extra reset logic to the AutoResetWrapper.
-      env_state = reset_fn(key_envs) if num_resets_per_eval > 0 else env_state
+      if num_resets_per_eval > 0:
+        env_state = _strip_weak_type(reset_fn(key_envs))
 
     if process_id != 0:
       continue
@@ -757,7 +966,32 @@ def train(
         training_state.params,
     ))
 
-    if (num_checkpoints > 0) and ((it+1) % (num_training_interruptions/max(num_checkpoints, 1)) == 0):
+    checkpoint_due = ((num_checkpoints > 0)
+                      and (it + 1) % (num_training_interruptions // max(num_checkpoints, 1)) == 0)
+    if save_training_state_path is not None and (
+        checkpoint_due or it + 1 == num_training_interruptions
+    ):
+      # Include post-rollout physical/task carry, reset keys and host RNG. The
+      # next host epoch draws its keys from local_key, exactly as before a stop.
+      # Save before callbacks so a failed evaluation/upload cannot lose progress.
+      jax.effects_barrier()
+      snapshot = {
+          'training_state': training_state, 'environment_state': env_state,
+          'local_key': local_key, 'reset_keys': key_envs,
+          'next_iteration': np.asarray(it + 1, dtype=np.int64),
+          'training_walltime': np.asarray(training_walltime, dtype=np.float64),
+      }
+      snapshot_metadata = dict(compatibility)
+      snapshot_metadata['metrics_logger'] = {
+          'num_steps': int(metrics_aggregator._num_steps),
+          'last_log_steps': int(metrics_aggregator._last_log_steps),
+          'log_count': int(metrics_aggregator._log_count),
+          'buffers': {name: list(values)
+                      for name, values in metrics_aggregator._metrics_buffer.items()},
+      }
+      resume.save(save_training_state_path, current_step, snapshot, snapshot_metadata)
+
+    if checkpoint_due:
       policy_params_fn_checkpoints(current_step, make_policy, params)
       if save_checkpoint_path is not None:
         checkpoint.save(

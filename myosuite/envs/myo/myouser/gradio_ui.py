@@ -1,26 +1,24 @@
 import gradio as gr
 import os
+import sys
 import wandb
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
-os.environ["MUJOCO_GL"] = "egl"
+import json
+from dataclasses import dataclass, field
+from typing import List
+import numpy as np
+from gradio_rangeslider import RangeSlider
+from myosuite.envs.myo.myouser.paths import (
+    get_bundled_checkpoint_dir, get_bundled_config_dir, get_logs_dir, get_user_config_dir,
+)
+from myosuite.envs.myo.myouser.presets import FIELD_NAMES, PresetStore, validate_preset_name
+from myosuite.envs.myo.myouser.validation import (
+    boolean, finite_number, integer, parse_color, validate_rl_parameters, validate_training_config,
+)
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+os.environ.setdefault("MUJOCO_GL", "glfw" if sys.platform == "win32" else "egl")
 xla_flags = os.environ.get('XLA_FLAGS', '')
-xla_flags += ' --xla_gpu_triton_gemm_any=True'
-os.environ['XLA_FLAGS'] = xla_flags
-
-if gr.NO_RELOAD:
-
-    from gradio_rangeslider import RangeSlider
-    from myosuite.envs.myo.myouser.myouser_universal import MyoUserUniversal
-    from myosuite.envs.myo.myouser.train_jax_ppo import train
-    from myosuite.envs.myo.myouser.hydra_cli import load_config_interactive
-    import numpy as np
-    import myosuite
-    from pathlib import Path
-    import json
-    from dataclasses import dataclass, field
-    from typing import List
-    myosuite_path = Path(myosuite.__path__[0])
-
+if "--xla_gpu_triton_gemm_any" not in xla_flags:
+    os.environ['XLA_FLAGS'] = (xla_flags + ' --xla_gpu_triton_gemm_any=True').strip()
 
 sphere_ranges = {
     "x": (0.2, 0.55),
@@ -32,24 +30,32 @@ sphere_ranges = {
 INIT_ELEMENTS = 2
 
 
-parent_path = myosuite_path.parent
-CHECKPOINT_PATH = os.path.join(parent_path, "tracked_checkpoints/universal")
-LOGS_PATH = os.path.join(parent_path, "logs")
-os.makedirs(LOGS_PATH, exist_ok=True)
+CHECKPOINT_PATH = get_bundled_checkpoint_dir()
+LOGS_PATH = get_logs_dir()
 
 @dataclass
 class RunState:
     wandb_run_name: str = ""
     cfg_overrides: List[str] = field(default_factory=lambda:[])
 
+
+def compose_configuration(overrides, cfg_only=False):
+    from myosuite.envs.myo.myouser.hydra_cli import load_config_interactive
+    return load_config_interactive(overrides, cfg_only=cfg_only)
+
+
+def render_configuration(config):
+    from myosuite.envs.myo.myouser.myouser_universal import MyoUserUniversal
+    return MyoUserUniversal(config.env).get_renderings()
+
 def checkpoints_diff_folders():
-    tracked_checkpoints = os.listdir(CHECKPOINT_PATH)
-    logs_checkpoints = os.listdir(LOGS_PATH)
+    tracked_checkpoints = sorted(path.name for path in CHECKPOINT_PATH.iterdir() if path.is_dir()) if CHECKPOINT_PATH.is_dir() else []
+    logs_checkpoints = sorted(path.name for path in LOGS_PATH.iterdir() if path.is_dir()) if LOGS_PATH.is_dir() else []
     return tracked_checkpoints, logs_checkpoints
 
 def get_available_checkpoints():
     tracked_checkpoints, logs_checkpoints = checkpoints_diff_folders()
-    checkpoints = tracked_checkpoints + logs_checkpoints + ["None"]
+    checkpoints = list(dict.fromkeys(tracked_checkpoints + logs_checkpoints)) + ["None"]
     return checkpoints
 
 
@@ -69,8 +75,10 @@ def get_available_checkpoint_numbers(checkpoint_run):
     else:
         return ["None"]
     checkpoint_path = os.path.join(checkpoint_path, "checkpoints")
-    available_numbers = [num for num in os.listdir(checkpoint_path) if is_number(num)]
-    return available_numbers
+    if not os.path.isdir(checkpoint_path):
+        return ["None"]
+    available_numbers = sorted((num for num in os.listdir(checkpoint_path) if is_number(num) and os.path.isdir(os.path.join(checkpoint_path, num))), key=int)
+    return available_numbers or ["None"]
 
 
 def checkpoint_path_from_run_number(checkpoint_run, checkpoint_number):
@@ -92,20 +100,10 @@ def update_checkpoint_numbers(checkpoint_run):
     return gr.update(choices=choices, value=choices[0])
 
 def extract_rgb(rgba):
-    rgba = rgba.split("rgba(")[1].strip(")")
-    r, g, b, a = rgba.split(",")
-    r = r.strip()
-    g = g.strip()
-    b = b.strip()
-    rgb = [float(x.strip()) / 255.0 for x in [r, g, b]]
-    return rgb
+    return parse_color(rgba)
 
 def hex_to_rgb(hex_color):
-    if "rgba" in hex_color:
-        return extract_rgb(hex_color)
-    hex_color = hex_color.lstrip('#')
-    rgb = tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))
-    return rgb
+    return parse_color(hex_color)
 
 def init_target_rgb(i):
     target_rgb = [
@@ -125,24 +123,22 @@ def init_target_rgb(i):
 
 def sanity_check_float(value, name):
     try:
-        float(value)
-    except Exception as e:
-        gr.Warning(f"{name} must be a float, got {value}")
+        finite_number(value, name)
+    except ValueError as e:
+        gr.Warning(str(e))
         return False
     return True
 
 def sanity_check_bool(value, name):
     try:
-        bool(value)
-    except Exception as e:
-        gr.Warning(f"{name} must be a boolean, got {value}")
+        boolean(value, name)
+    except ValueError as e:
+        gr.Warning(str(e))
         return False
     return True
 
 def sanity_check_choices(value, name, choices):
-    try:
-        assert value in choices
-    except Exception as e:
+    if value not in choices:
         gr.Warning(f"{name} must be a string and one of the following: {choices} but got {value}")
         return False
     return True
@@ -159,17 +155,17 @@ def sanity_check_rgb(rgb, name):
 
 def sanity_check_int(value, name):
     try:
-        int(value)
-    except Exception as e:
-        gr.Warning(f"{name} must be an integer, got {value}")
+        integer(value, name)
+    except ValueError as e:
+        gr.Warning(str(e))
         return False
     return True
 
 def sanity_check_number_targets(num_targets, name):
     try:
-        assert 1 <= int(num_targets) <= 10
-    except Exception as e:
-        gr.Warning(f"Number of targetsmust be an integer between 1 and 10 but got {num_targets}")
+        integer(num_targets, name, minimum=1, maximum=10)
+    except ValueError as e:
+        gr.Warning(str(e))
         return False
     return True
 
@@ -244,9 +240,9 @@ class BMParameters:
             return False, []
         overrides = []
         overrides.append(f"env.ctrl_dt={float(ctrl_dt)}")
-        overrides.append(f"env.task_config.reset_type={reset_type}")
-        sigdepnoise_type = "white" if sigdepnoise_enabled else "None"
-        constantnoise_type = "white" if constantnoise_enabled else "None"
+        overrides.append(f"env.task_config.reset_type={'null' if reset_type == 'None' else reset_type}")
+        sigdepnoise_type = "white" if sigdepnoise_enabled else "null"
+        constantnoise_type = "white" if constantnoise_enabled else "null"
         overrides.append(f"env.muscle_config.noise_params.sigdepnoise_type={sigdepnoise_type}")
         overrides.append(f"env.muscle_config.noise_params.constantnoise_type={constantnoise_type}")
         return True, overrides
@@ -377,8 +373,8 @@ class BoxParameters:
         box_position_x, box_position_y, box_position_z, box_size_x_slider, box_size_y_slider, min_touch_force, orientation_angle, rgb_btn = cls.get_my_args(i, all_args)
         try:
             rgb = hex_to_rgb(rgb_btn)
-        except Exception as e:
-            gr.Warning(f"Box {i+1} RGB must be a valid hex color code, got {rgb_btn}")
+        except ValueError as e:
+            gr.Warning(f"Box {i+1} RGB must be a valid color: {e}")
             return False, []
         sanity_check = cls.sanity_check_args(i, box_position_x, box_position_y, box_position_z, box_size_x_slider, box_size_y_slider, min_touch_force, orientation_angle, rgb)
         if not sanity_check:
@@ -487,8 +483,8 @@ class SphereParameters:
         x_range, y_range, z_range, size_range, dwell_duration, rgb = cls.get_my_args(i, all_args)
         try:
             rgb = hex_to_rgb(rgb)
-        except Exception as e:
-            gr.Warning(f"Sphere {i+1} RGB must be a valid hex color code, got {rgb}")
+        except ValueError as e:
+            gr.Warning(f"Sphere {i+1} RGB must be a valid color: {e}")
             return False, []
         sanity_check = cls.sanity_check_args(i, x_range, y_range, z_range, size_range, dwell_duration, rgb)
         if not sanity_check:
@@ -695,21 +691,21 @@ class RLParameters:
             batch_size = gr.Number(
                 label="Batch Size",
                 value=128,
-                minimum=0,
+                minimum=1,
                 maximum=512,
                 interactive=True
             )
             num_envs = gr.Number(
                 label="Number of Parallel Environments",
                 value=1024,
-                minimum=0,
+                minimum=1,
                 maximum=4096,
                 interactive=True
             )
             num_minibatches = gr.Number(
                 label="Number of Minibatches",
                 value=8,
-                minimum=0,
+                minimum=1,
                 maximum=40,
                 interactive=True
             )
@@ -737,7 +733,7 @@ class RLParameters:
             label="Target Initial Seed",
             value = 0,
             minimum=0,
-            maximum=1000000,
+            maximum=2**32 - 1,
             interactive=True,
             visible=False
         )
@@ -759,6 +755,11 @@ class RLParameters:
         sanity_check &= sanity_check_choices(select_checkpoint_run, "Select Experiment from which to load checkpoints", get_available_checkpoints())
         sanity_check &= sanity_check_choices(select_checkpoint_number, "Select Checkpoint Number", get_available_checkpoint_numbers(select_checkpoint_run))
         sanity_check &= sanity_check_int(target_init_seed, "Target Initial Seed")
+        try:
+            validate_rl_parameters(dict(num_timesteps=num_timesteps, num_checkpoints=num_checkpoints, num_evals=num_evaluations, batch_size=batch_size, num_envs=num_envs, num_minibatches=num_minibatches))
+        except ValueError as error:
+            gr.Warning(str(error))
+            sanity_check = False
         return sanity_check
 
     @classmethod
@@ -778,7 +779,7 @@ class RLParameters:
         overrides.append(f"rl.num_envs={int(num_envs)}")
         overrides.append(f"rl.num_minibatches={int(num_minibatches)}")
         exact_checkpoint_path = checkpoint_path_from_run_number(select_checkpoint_run, select_checkpoint_number)
-        overrides.append(f"rl.load_checkpoint_path={exact_checkpoint_path}")
+        overrides.append(f"rl.load_checkpoint_path={'null' if exact_checkpoint_path == 'None' else json.dumps(str(exact_checkpoint_path))}")
         overrides.append(f"env.task_config.target_init_seed={int(target_init_seed)}")
         return True, overrides
 
@@ -792,44 +793,46 @@ class RLParameters:
 
 
 def update_dwell_duration(dwell_duration, ctrl_dt):
-    return gr.update(minimum=max(ctrl_dt, 0))
+    if not sanity_check_float(ctrl_dt, "Control timestep") or ctrl_dt <= 0:
+        return gr.skip()
+    return gr.update(minimum=ctrl_dt, value=max(ctrl_dt, dwell_duration or 0))
 
 class ConfigSaver:    
     def check_folder(self):
-        if not os.path.exists("gradio_configs"):
-            os.makedirs("gradio_configs")
-        files = os.listdir("gradio_configs")
-        json_files = [file for file in files if file.endswith(".json")]
-        file_names = [file.split(".")[0] for file in json_files]
-        return file_names
+        return self.store.names()
     
-    def __init__(self):
+    def __init__(self, user_dir=None, bundled_dir=None):
+        self.store = PresetStore(user_dir or get_user_config_dir(), bundled_dir or get_bundled_config_dir())
         self.my_configs = self.check_folder()
 
     def add_config(self, config_name, data):
-        with open(f"gradio_configs/{config_name}.json", "w") as f:
-            json.dump(data, f)
+        self.store.save(config_name, data)
         
     def config_save_clicked(self, config_name_input, *args):
-        if config_name_input in self.my_configs:
-            gr.Warning("There is already a configuration with this name. Please choose a different name.")
-            return gr.skip()
-        if config_name_input == "":
-            gr.Warning("Please enter a name for the configuration.")
-        else:
+        try:
             self.add_config(config_name_input, args)
-            self.my_configs.append(config_name_input)
+        except (ValueError, OSError) as error:
+            gr.Warning(str(error))
+            return gr.skip()
+        self.my_configs = self.check_folder()
         return gr.update(choices=self.my_configs, value=config_name_input)
 
     def available_configs(self):
         return self.my_configs
 
     def load_config(self, config_name):
-        with open(f"gradio_configs/{config_name}.json", "r") as f:
-            data = json.load(f)
+        if not config_name:
+            return tuple(gr.skip() for _ in FIELD_NAMES)
+        try:
+            data = self.store.load(config_name)
+        except (ValueError, OSError) as error:
+            gr.Warning(str(error))
+            return tuple(gr.skip() for _ in FIELD_NAMES)
         return tuple([gr.update(value=k) for k in data])
 
-def get_ui(project_name, run_state = RunState()):
+def get_ui(project_name, run_state=None):
+    if run_state is None:
+        run_state = RunState()
     # Fix box handlers properly
     with gr.Blocks() as demo:
         pageview = gr.Radio(
@@ -855,7 +858,7 @@ def get_ui(project_name, run_state = RunState()):
             pre_saved_configs = gr.Dropdown(
                 label="Pre-saved configurations",
                 choices=config_saver.available_configs(),
-                value="",
+                value=None,
                 interactive=True,
                 visible=True
             )
@@ -869,7 +872,7 @@ def get_ui(project_name, run_state = RunState()):
         num_elements = gr.Number(
             label="Number of Targets",
             value=INIT_ELEMENTS,
-            minimum=0,
+            minimum=1,
             maximum=10,
             precision=0,
             interactive=True
@@ -1042,7 +1045,9 @@ def get_ui(project_name, run_state = RunState()):
 
 
         gr.Markdown("### View of the environment")
-        render_button = gr.Button("Render Environment", variant="primary", size="lg")
+        with gr.Row():
+            render_button = gr.Button("Render Environment", variant="primary", size="lg")
+            resample_button = gr.Button("Resample Targets", size="lg")
         with gr.Row(visible=False) as env_view_row:
             env_view_1 = gr.Image(label="Environment View", interactive=False)
             env_view_2 = gr.Image(label="Environment View", interactive=False)
@@ -1054,7 +1059,7 @@ def get_ui(project_name, run_state = RunState()):
             save_config_button = gr.Button("Save Configuration", variant="primary", size="lg")
         # Add Run button and output
         gr.Markdown("### Run Configuration")
-        gr.Markdown("Click the save button above to save the configuration first!")
+        gr.Markdown("Press Run to use this configuration, then start training in the notebook. Saving a preset is optional.")
         with gr.Row():
             run_button = gr.Button("Run", variant="primary", size="lg")
         
@@ -1070,17 +1075,22 @@ def get_ui(project_name, run_state = RunState()):
             """Print all configuration details"""
             # Extract values from args
             num_targets = args[RLParameters.num_elements]
+            if not sanity_check_number_targets(num_targets, "Number of Targets"):
+                return False, []
             radio_start = RLParameters.num_elements + 1
             radio_end = radio_start + 10
             radio_values = args[radio_start:radio_end]
             
-            cfg_overrides = ["env=universal", "run.using_gradio=True", f"wandb.project={project_name}", f"wandb.entity={wandb.api.default_entity}", f"wandb.name={run_name}"]
+            cfg_overrides = ["env=universal", "run.using_gradio=True", f"wandb.project={json.dumps(project_name)}", f"wandb.entity={json.dumps(wandb.api.default_entity)}", f"wandb.name={json.dumps(run_name or 'preview')}"]
             all_sanity_checks = True
             sanity_check, bm_overrides = BMParameters.parse_values(args)
+            all_sanity_checks &= sanity_check
             cfg_overrides.extend(bm_overrides)
 
             for i in range(int(num_targets)):
                 target_type = radio_values[i]
+                if not sanity_check_choices(target_type, f"Target {i+1} type", ("Box", "Sphere")):
+                    return False, []
                 cfg_overrides.append(f"+env/task_config/targets/target_{i}={target_type.lower()}")
                 
                 if target_type == "Box":
@@ -1110,40 +1120,58 @@ def get_ui(project_name, run_state = RunState()):
             cfg_overrides.extend(reward_overrides)
             cfg_overrides.extend(rl_overrides)
 
+            if all_sanity_checks:
+                try:
+                    validate_training_config(compose_configuration(cfg_overrides, cfg_only=True))
+                except (ValueError, TypeError, KeyError) as error:
+                    gr.Warning(str(error))
+                    return False, []
             return all_sanity_checks, cfg_overrides
 
         def run_training(run_name, *args):
-            if run_name == "":
-                gr.Warning("Please enter a name for the configuration.")
-                text = "Error: You must enter a name for the configuration."
-                return text
+            try:
+                validate_preset_name(run_name)
+            except ValueError as error:
+                gr.Warning(str(error))
+                return f"Error: {error}"
             sanity_check, cfg_overrides = args_to_cfg_overrides(run_name, *args)
             if not sanity_check:
                 gr.Warning("Invalid configuration.")
                 return "Error: Invalid configuration."
-            # cfg = load_config_interactive(cfg_overrides, cfg_only=True)
             gr.Info("Go back to the notebook and run the next cells to start training!")
             run_state.cfg_overrides.clear()
             run_state.cfg_overrides.extend(cfg_overrides)
             run_state.wandb_run_name = run_name
-            # train(cfg)
-            text = "Go to the next notebook in the cell and run the training!\n"
+            text = "Return to the notebook and run the training cell.\n"
             text += "\n".join(run_state.cfg_overrides)
             return text
 
-        def render_environment(run_name, *args):
-            target_init_seed = RLParameters.get_target_init_seed(args)
-            next_seed = target_init_seed + 1
+        def preview_images(run_name, args):
             sanity_check, cfg_overrides = args_to_cfg_overrides(run_name, *args)
             if not sanity_check:
                 gr.Warning("Invalid configuration.")
-                return gr.skip()
-            config = load_config_interactive(cfg_overrides)
-            env = MyoUserUniversal(config.env)
-            imgs = env.get_renderings()
+                return None
+            config = compose_configuration(cfg_overrides)
+            imgs = render_configuration(config)
             img1 = imgs[0][1]
             img2 = imgs[1][1]
-            return gr.update(value=next_seed), gr.update(visible=True), gr.update(value=img1), gr.update(value=img2)
+            return gr.update(visible=True), gr.update(value=img1), gr.update(value=img2)
+
+        def render_environment(run_name, *args):
+            return preview_images(run_name, args) or tuple(gr.skip() for _ in range(3))
+
+        def resample_environment(run_name, *args):
+            updated = list(args)
+            try:
+                next_seed = (integer(RLParameters.get_target_init_seed(args), "Target seed", maximum=2**32 - 1) + 1) % 2**32
+            except ValueError as error:
+                gr.Warning(str(error))
+                return tuple(gr.skip() for _ in range(4))
+            updated[RLParameters.num_elements - 1] = next_seed
+            images = preview_images(run_name, updated)
+            if images is None:
+                return tuple(gr.skip() for _ in range(4))
+            return gr.update(value=next_seed), *images
             
 
         def update_dynamic_elements(num):
@@ -1263,12 +1291,16 @@ def get_ui(project_name, run_state = RunState()):
         render_button.click(
             render_environment,
             inputs=run_or_save_inputs,
+            outputs=[env_view_row, env_view_1, env_view_2]
+        )
+        resample_button.click(
+            resample_environment,
+            inputs=run_or_save_inputs,
             outputs=[target_init_seed, env_view_row, env_view_1, env_view_2]
         )
 
     return demo
 
 if __name__ == "__main__":
-    wandb_url = None
-    demo = get_ui(wandb_url)
-    demo.launch(share=True)
+    demo = get_ui("myointeract")
+    demo.launch(share=False)

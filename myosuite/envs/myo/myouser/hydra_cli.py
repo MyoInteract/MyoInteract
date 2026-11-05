@@ -12,11 +12,12 @@ from hydra import initialize, compose
 from ml_collections import ConfigDict
 from myosuite.envs.myo.myouser.base import BaseEnvConfig
 from myosuite.envs.myo.myouser.myouser_universal import UniversalEnvConfig, LIST_CONFIGS, ButtonTarget, PointingTarget
+from myosuite.envs.myo.myouser.validation import validate_training_config
 
 OmegaConf.register_new_resolver("check_string", lambda x: "" if x is None else "-" + str(x))
 
 def select_network(vision_enabled):
-    if vision_enabled == "enabled":
+    if vision_enabled is True or vision_enabled == "enabled":
         return "vision"
     else:
         return "no_vision"
@@ -105,6 +106,8 @@ class RLConfig:
     max_grad_norm: float = 1.0
     network_factory: NetworkConfig = field(default_factory=lambda: NetworkConfig())
     load_checkpoint_path: Union[str, None] = None
+    # Full optimizer/RNG/environment continuation; policy loading remains a warm start.
+    resume_training_path: Union[str, None] = None
 
 class VisionModes(str, Enum):
     rgbd = 'rgbd'
@@ -130,7 +133,7 @@ class VisionDisabledConfig:
 defaults = [
     {'wandb': 'enabled'},
     {'vision': 'disabled'},
-    {'env': 'pointing'},
+    {'env': 'universal'},
     {'rl': 'rl_config'},
     {'run': 'run'},
     {'rl/network_factory': '${select_network:${vision}}'},
@@ -183,7 +186,7 @@ for (i, name, config) in LIST_CONFIGS:
     
 
 
-def load_config_interactive(overrides=[], cfg_only=False):
+def load_config_interactive(overrides=None, cfg_only=False):
     """
     Use this function to load the config interactively from a jupyer notebook.
 
@@ -197,13 +200,13 @@ def load_config_interactive(overrides=[], cfg_only=False):
     GlobalHydra.instance().clear()
     
     with initialize(version_base=None, config_path=None):
-        cfg = compose(config_name="config", overrides=overrides)
-
-    if cfg_only:
-        return cfg
+        cfg = compose(config_name="config", overrides=overrides or [])
     
     container = OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True)
     container['env']['vision'] = container['vision']
+    validate_training_config(container)
+    if cfg_only:
+        return cfg
     config = ConfigDict(container)
     return config
 

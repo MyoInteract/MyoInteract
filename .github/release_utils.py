@@ -1,4 +1,5 @@
 import argparse
+import ast
 import re
 from typing import Tuple
 
@@ -7,7 +8,7 @@ def find_version(version_file_path) -> str:
     with open(version_file_path) as version_file:
         version_match = re.search(r"^__version_tuple__ = (.*)", version_file.read(), re.M)
         if version_match:
-            ver_tup = eval(version_match.group(1))
+            ver_tup = ast.literal_eval(version_match.group(1))
             ver_str = ".".join([str(x) for x in ver_tup])
             return ver_str
         raise RuntimeError("Unable to find version tuple.")
@@ -44,11 +45,13 @@ def update_version(new_version_tuple) -> None:
         current_version_data = reader.read()
 
     # for line in current_version_data:
-    version_match = re.search(r"^__version_tuple__ ", current_version_data)
+    current_version_data, count = re.subn(
+        r"^__version_tuple__\s*=.*$",
+        "__version_tuple__ = %s" % str(new_version_tuple),
+        current_version_data, count=1, flags=re.M,
+    )
 
-    if version_match:
-        new_version_data = "__version_tuple__ = %s\n" % str(new_version_tuple)
-        current_version_data = current_version_data.replace(version_match.string, new_version_data)
+    if count:
 
         with open("myosuite/version.py", "w") as writer:
             writer.write(current_version_data)
