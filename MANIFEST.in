@@ -1,0 +1,3 @@
+include tests/*.mjs
+include tests/studio_reference_profiles.py tests/generate_studio_references.py
+recursive-include tests/fixtures *.json

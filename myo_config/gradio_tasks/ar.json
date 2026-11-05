@@ -1,0 +1,543 @@
+{
+ "rl": {
+  "Number of Total Training Steps": 22000000,
+  "Checkpoint Interval (in Number of Training Iterations)": 30,
+  "Number of Parallel Environments": 4096,
+  "Unroll Length": 10,
+  "Number of Minibatches": 8,
+  "Number of Epochs Per Update": 8,
+  "Select Experiment from Which to Load Checkpoints": "None",
+  "Select Checkpoint Number": "None",
+  "Show Checkpoints from Own Training Runs": false,
+  "Target Initial Seed": 2
+ },
+ "num_targets": 8,
+ "target_1": {
+  "radio": "Sphere",
+  "box": {
+   "box_position_x": [
+    0.42,
+    0.42
+   ],
+   "box_position_y": [
+    0.02,
+    0.02
+   ],
+   "box_position_z": [
+    0.01,
+    0.01
+   ],
+   "box_size_x": [
+    0.05,
+    0.05
+   ],
+   "box_size_y": [
+    0.05,
+    0.05
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 90,
+   "rgb": "rgba(204.0,25.5,25.5,1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.15,
+    0.15
+   ],
+   "z_range": [
+    -0.3,
+    0.3
+   ],
+   "size_range": [
+    0.04,
+    0.08
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(204.0,25.5,25.5,1)"
+  }
+ },
+ "target_2": {
+  "radio": "Box",
+  "box": {
+   "box_position_x": [
+    0.42,
+    0.42
+   ],
+   "box_position_y": [
+    0.15,
+    0.15
+   ],
+   "box_position_z": [
+    -0.29,
+    -0.29
+   ],
+   "box_size_x": [
+    0.05,
+    0.05
+   ],
+   "box_size_y": [
+    0.05,
+    0.05
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(21.727069134556814, 0, 87.6828125, 1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.036,
+    0.036
+   ],
+   "z_range": [
+    0.3,
+    0.3
+   ],
+   "size_range": [
+    0.01,
+    0.01
+   ],
+   "dwell_duration": 0.05,
+   "rgb": "rgba(25.5,204.0,25.5,1)"
+  }
+ },
+ "target_3": {
+  "radio": "Sphere",
+  "box": {
+   "box_position_x": [
+    0.42,
+    0.42
+   ],
+   "box_position_y": [
+    0.02,
+    0.02
+   ],
+   "box_position_z": [
+    -0.29,
+    -0.29
+   ],
+   "box_size_x": [
+    0.05,
+    0.05
+   ],
+   "box_size_y": [
+    0.05,
+    0.05
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 90,
+   "rgb": "rgba(25.5,25.5,204.0,1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.3,
+    0.3
+   ],
+   "y_range": [
+    -0.15,
+    0.15
+   ],
+   "z_range": [
+    0.0,
+    0.3
+   ],
+   "size_range": [
+    0.04,
+    0.08
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(25.5,25.5,204.0,1)"
+  }
+ },
+ "target_4": {
+  "radio": "Box",
+  "box": {
+   "box_position_x": [
+    0.42,
+    0.42
+   ],
+   "box_position_y": [
+    0.15,
+    0.15
+   ],
+   "box_position_z": [
+    0.01,
+    0.01
+   ],
+   "box_size_x": [
+    0.05,
+    0.05
+   ],
+   "box_size_y": [
+    0.05,
+    0.05
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(1.8085872949149906, 130.21995849609377, 9.44324653413178, 1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.036,
+    0.036
+   ],
+   "z_range": [
+    0.3,
+    0.3
+   ],
+   "size_range": [
+    0.01,
+    0.01
+   ],
+   "dwell_duration": 0.05,
+   "rgb": "rgba(204.0,204.0,25.5,1)"
+  }
+ },
+ "target_5": {
+  "radio": "Sphere",
+  "box": {
+   "box_position_x": [
+    0.5,
+    0.5
+   ],
+   "box_position_y": [
+    0,
+    0
+   ],
+   "box_position_z": [
+    -0.05,
+    -0.05
+   ],
+   "box_size_x": [
+    0.025,
+    0.025
+   ],
+   "box_size_y": [
+    0.025,
+    0.025
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(102.0,102.0,102.0,1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.3,
+    0.3
+   ],
+   "y_range": [
+    -0.1,
+    0.1
+   ],
+   "z_range": [
+    0.0,
+    0.3
+   ],
+   "size_range": [
+    0.04,
+    0.08
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(102.0,102.0,102.0,1)"
+  }
+ },
+ "target_6": {
+  "radio": "Box",
+  "box": {
+   "box_position_x": [
+    0.42,
+    0.42
+   ],
+   "box_position_y": [
+    -0.15,
+    -0.15
+   ],
+   "box_position_z": [
+    -0.29,
+    -0.29
+   ],
+   "box_size_x": [
+    0.05,
+    0.05
+   ],
+   "box_size_y": [
+    0.05,
+    0.05
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(130, 1.999999999999993, 1.999999999999993, 1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.1,
+    0.1
+   ],
+   "z_range": [
+    -0.3,
+    0.3
+   ],
+   "size_range": [
+    0.05,
+    0.15
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(102.0,25.5,102.0,1)"
+  }
+ },
+ "target_7": {
+  "radio": "Sphere",
+  "box": {
+   "box_position_x": [
+    0.41,
+    0.41
+   ],
+   "box_position_y": [
+    -0.07,
+    -0.07
+   ],
+   "box_position_z": [
+    0.05,
+    0.05
+   ],
+   "box_size_x": [
+    0.025,
+    0.025
+   ],
+   "box_size_y": [
+    0.025,
+    0.025
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(25.5,102.0,102.0,1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.15,
+    0.15
+   ],
+   "z_range": [
+    -0.3,
+    0.3
+   ],
+   "size_range": [
+    0.05,
+    0.15
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(0, 251.83906249999998, 244.47489862549497, 1)"
+  }
+ },
+ "target_8": {
+  "radio": "Box",
+  "box": {
+   "box_position_x": [
+    0.42,
+    0.42
+   ],
+   "box_position_y": [
+    -0.15,
+    -0.15
+   ],
+   "box_position_z": [
+    0.01,
+    0.01
+   ],
+   "box_size_x": [
+    0.025,
+    0.025
+   ],
+   "box_size_y": [
+    0.025,
+    0.025
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(105.9046875, 105.9046875, 105.9046875, 1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.1,
+    0.1
+   ],
+   "z_range": [
+    -0.3,
+    0.3
+   ],
+   "size_range": [
+    0.05,
+    0.15
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(102.0,102.0,25.5,1)"
+  }
+ },
+ "target_9": {
+  "radio": "Sphere",
+  "box": {
+   "box_position_x": [
+    0.41,
+    0.41
+   ],
+   "box_position_y": [
+    -0.07,
+    -0.07
+   ],
+   "box_position_z": [
+    -0.25,
+    -0.25
+   ],
+   "box_size_x": [
+    0.025,
+    0.025
+   ],
+   "box_size_y": [
+    0.025,
+    0.025
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(25.5,25.5,25.5,1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.1,
+    0.1
+   ],
+   "z_range": [
+    -0.3,
+    0.3
+   ],
+   "size_range": [
+    0.05,
+    0.15
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(25.5,25.5,25.5,1)"
+  }
+ },
+ "target_10": {
+  "radio": "Sphere",
+  "box": {
+   "box_position_x": [
+    0.41,
+    0.41
+   ],
+   "box_position_y": [
+    0,
+    0
+   ],
+   "box_position_z": [
+    -0.25,
+    -0.25
+   ],
+   "box_size_x": [
+    0.025,
+    0.025
+   ],
+   "box_size_y": [
+    0.025,
+    0.025
+   ],
+   "min_touch_force": 1,
+   "orientation_angle": 45,
+   "rgb": "rgba(204.0,204.0,204.0,1)"
+  },
+  "sphere": {
+   "x_range": [
+    0.225,
+    0.35
+   ],
+   "y_range": [
+    -0.1,
+    0.1
+   ],
+   "z_range": [
+    -0.3,
+    0.3
+   ],
+   "size_range": [
+    0.05,
+    0.15
+   ],
+   "dwell_duration": 0.25,
+   "rgb": "rgba(204.0,204.0,204.0,1)"
+  }
+ },
+ "bm": {
+  "bm_model": "MyoArm_nohand",
+  "ctrl_dt": 0.05,
+  "reset_type": "epsilon_uniform",
+  "sigdepnoise_enabled": true,
+  "constantnoise_enabled": false,
+  "fatigue_enabled": false,
+  "mj_impl_type": "mjlab"
+ },
+ "task": {
+  "max_duration": 10
+ },
+ "obs": {
+  "qpos": [
+   true,
+   true,
+   true,
+   true,
+   true
+  ],
+  "qvel": [
+   false,
+   false,
+   false
+  ],
+  "qacc": [
+   false,
+   false
+  ],
+  "ee_pos": [
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "reward": {
+  "distance": 1,
+  "subtask_bonus": 1,
+  "completion_bonus": 10,
+  "neural_effort": 0.0,
+  "jac_effort": 0
+ },
+ "extra_overrides": [
+  "++env.task_config.weighted_reward_keys.action_rate=0.00747",
+  "++env.task_config.weighted_reward_keys.pronation=0.25",
+  "++env.task_config.weighted_reward_keys.button_force=1.92"
+ ]
+}

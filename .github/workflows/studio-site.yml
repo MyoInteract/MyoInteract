@@ -1,0 +1,46 @@
+# Hosted Studio page on GitHub Pages: the Studio app as a static site that runs without a backend and
+# connects to a local `myo_studio serve` (with its pairing code).
+# Started by hand only. Before the first run, enable Pages (Settings -> Pages -> Source: GitHub Actions).
+# A Pages site is public on most plans, even for a private repository.
+name: Studio site
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: studio-site
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install (CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[mjlab,studio]"
+      - name: Build the site
+        run: python -m myoInteract.studio.build_site --out site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,2510 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyoInteract Studio</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d9432a'/%3E%3Cpath d='M8 23 L14 13 L21 16' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='8' cy='23' r='2.4' fill='%23fff'/%3E%3Ccircle cx='14' cy='13' r='2.4' fill='%23fff'/%3E%3Ccircle cx='25' cy='9' r='3.2' fill='none' stroke='%2314161b' stroke-width='2.2'/%3E%3Ccircle cx='25' cy='9' r='0.9' fill='%2314161b'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a short intro, then the studio. Wide screens: the 3D scene fills the studio and the steps,
+   the step panel and the summary float over it. Narrow screens: the scene on top, the step panel in a
+   sheet below it. */
+:root {
+  --bg: #f4f4f1;
+  --surface: #ffffff;
+  --ink: #14161b;
+  --muted: #5e6168;
+  --line: #e1e0da;
+  --tint: #efeee9;
+  --accent: #d9432a;
+  --accent-ink: #ffffff;
+  --link: #b5321c;
+  --ok: #2b7a4b;
+  --warn: #b5321c;
+  --hero-a: #14161b;
+  --hero-b: #23211c;
+  --hero-ink: #f4f2ec;
+  --hero-muted: #c9c6bd;
+  --hero-hi: #f26b4f;
+  --hero-line: #3f3d37;
+  --logo-target: #14161b;
+  --scene-bg: #e6e5df;
+  --scene-grid: #c9c7be;
+  --scene-reach: #8a8880;
+  --glass: rgba(255, 255, 255, 0.86);
+  --scene-dim: rgba(244, 244, 241, 0.5);
+  --shadow: 0 1px 2px rgba(20, 22, 27, 0.05), 0 12px 32px rgba(20, 22, 27, 0.09);
+  --radius: 14px;
+  --font-display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101114; --surface: #191a1f; --ink: #eeeeea; --muted: #a0a2a8; --line: #2c2d33; --tint: #222329;
+    --accent: #ef5b41; --accent-ink: #14161b; --link: #f47a63; --ok: #6cc58f; --warn: #f47a63;
+    --hero-a: #0c0d10; --hero-b: #1a1814; --hero-ink: #f4f2ec; --hero-muted: #c4c1b8; --hero-hi: #f26b4f; --hero-line: #3a3832; --logo-target: #14161b;
+    --scene-bg: #131417; --scene-grid: #2f3037; --scene-reach: #96979c; --glass: rgba(25, 26, 31, 0.86); --scene-dim: rgba(16, 17, 20, 0.5);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101114; --surface: #191a1f; --ink: #eeeeea; --muted: #a0a2a8; --line: #2c2d33; --tint: #222329;
+  --accent: #ef5b41; --accent-ink: #14161b; --link: #f47a63; --ok: #6cc58f; --warn: #f47a63;
+  --hero-a: #0c0d10; --hero-b: #1a1814; --hero-ink: #f4f2ec; --hero-muted: #c4c1b8; --hero-hi: #f26b4f; --hero-line: #3a3832; --logo-target: #14161b;
+  --scene-bg: #131417; --scene-grid: #2f3037; --scene-reach: #96979c; --glass: rgba(25, 26, 31, 0.86); --scene-dim: rgba(16, 17, 20, 0.5);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+a { color: var(--link); }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.015em; }
+h3 { font-size: 0.98rem; }
+p { margin: 0; }
+.mono { font-family: var(--font-mono); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; color: var(--muted); }
+
+/* nav */
+.nav { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); border-bottom: 1px solid var(--line); }
+.nav-in { max-width: 1440px; margin: 0 auto; padding: 9px 20px; display: flex; align-items: center; gap: 16px; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 1.02rem; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.brand-mark { width: 24px; height: 24px; flex: none; }
+.nav a.link, .nav .link-btn { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 0.92rem; }
+.nav a.link:hover, .nav .link-btn:hover { color: var(--ink); }
+.spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 0.8rem; white-space: nowrap; min-width: 0; }
+#conn-text { overflow: hidden; text-overflow: ellipsis; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.pill.on .dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+.btn { font: inherit; font-weight: 600; font-size: 0.84rem; line-height: 1.3; text-decoration: none; display: inline-block; border-radius: 9px; padding: 6px 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; transition: border-color 0.15s, filter 0.15s, background 0.15s; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: color-mix(in srgb, var(--ink) 28%, var(--line)); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.07); }
+.btn.small { padding: 4px 9px; font-size: 0.78rem; border-radius: 8px; }
+.btn:focus-visible, input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* intro */
+.hero { background: linear-gradient(135deg, var(--hero-a), var(--hero-b)); color: var(--hero-ink); }
+.hero-in { max-width: 1440px; margin: 0 auto; padding: 40px 20px 36px; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 40px; align-items: center; }
+.hero h1 { font-size: clamp(1.7rem, 3.3vw, 2.6rem); line-height: 1.12; }
+.hero h1 em { font-style: normal; color: var(--hero-hi); }
+.hero p.lead { font-size: 1.05rem; color: var(--hero-muted); margin-top: 12px; max-width: 48ch; }
+.hero .cta { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.hero .btn { border-color: var(--hero-line); background: transparent; color: var(--hero-ink); }
+/* walkthrough: a ring around the explained element, the card beside it */
+.tour-ring { position: fixed; z-index: 60; border: 2px solid var(--accent); border-radius: 14px; box-shadow: 0 0 0 9999px rgba(10, 12, 20, 0.38); pointer-events: none; transition: all 0.25s ease; }
+.tour-card { position: fixed; z-index: 61; width: min(340px, calc(100vw - 16px)); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 6px; transition: left 0.25s ease, top 0.25s ease; }
+.tour-card h3 { font-size: 1rem; margin: 0; }
+.tour-card p { font-size: 0.84rem; line-height: 1.45; margin: 0; color: var(--muted); }
+.tour-count { font-size: 0.68rem; color: var(--muted); font-family: var(--font-mono); }
+.tour-actions { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+.tour-actions > span { flex: 1; }
+.tour-actions .link-btn { font-size: 0.8rem; color: var(--muted); }
+@media (max-height: 700px) { .tour-card { padding: 10px 12px; gap: 4px; } .tour-card p { font-size: 0.8rem; line-height: 1.38; } .tour-actions { margin-top: 2px; } }
+.hero .paper-ref { font-size: 0.82rem; color: var(--hero-muted); margin-top: 10px; max-width: 60ch; }
+.hero .paper-ref a, .hero .paper-ref .link-btn { color: var(--hero-hi); }
+.link-btn { all: unset; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#cite-bib { white-space: pre-wrap; overflow-wrap: anywhere; max-height: none; }
+.hero .btn.primary { background: var(--hero-hi); color: var(--hero-a); border-color: var(--hero-hi); }
+.steps-strip { display: grid; gap: 8px; }
+.strip-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.07); font-size: 0.9rem; }
+.strip-item b { font-family: var(--font-display); font-size: 0.92rem; }
+.strip-num { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.8rem; background: rgba(242, 107, 79, 0.16); color: var(--hero-hi); }
+.strip-item span { color: var(--hero-muted); }
+.facts { max-width: 1440px; margin: 0 auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.fact b { font-family: var(--font-display); font-size: 0.95rem; display: block; }
+.fact span { color: var(--muted); font-size: 0.84rem; }
+
+/* studio */
+.studio { scroll-margin-top: 51px; position: relative; height: calc(100vh - 51px); min-height: 620px; overflow: hidden; border-top: 1px solid var(--line); background: var(--scene-bg); }
+#stage { position: absolute; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#stage::after { content: ""; position: absolute; inset: 0; background: var(--scene-dim); opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+#stage.dim::after { opacity: 1; }
+.stage-msg { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+.overlay { position: absolute; inset: 12px 12px 64px; display: grid; grid-template-columns: 136px minmax(0, 392px) minmax(0, 1fr) 272px; grid-template-rows: minmax(0, 1fr); gap: 12px; align-items: start; pointer-events: none; }
+.overlay > * { pointer-events: auto; max-height: 100%; overflow: auto; scrollbar-width: thin; }
+.overlay > .gap { pointer-events: none; }
+.overlay .panel, .stepper, .scene-bar, .mcard { background: var(--glass); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); border: 1px solid color-mix(in srgb, var(--line) 85%, transparent); box-shadow: var(--shadow); }
+.stepper { display: grid; gap: 1px; padding: 5px; border-radius: var(--radius); }
+.stepper button { all: unset; cursor: pointer; display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: center; padding: 5px 7px; border-radius: 8px; color: var(--muted); font-size: 0.84rem; font-weight: 500; }
+.stepper button:hover { color: var(--ink); background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.stepper button .n { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.62rem; background: var(--tint); }
+.stepper button[aria-current="step"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgba(0, 0, 0, 0.05); }
+.stepper button[aria-current="step"] .n { background: var(--accent); color: var(--accent-ink); }
+.stepper button.done .n { background: color-mix(in srgb, var(--ok) 16%, var(--tint)); color: var(--ok); }
+.stepper button:focus-visible { outline: 2px solid var(--accent); }
+.scene-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 28px); padding: 5px; border-radius: 12px; }
+.scene-bar .sep { width: 1px; align-self: stretch; background: var(--line); margin-inline: 2px; }
+.scene-bar > * { flex: none; }
+.scene-bar .toggles { display: inline-flex; gap: 6px; }
+.scene-bar .seg button { padding: 4px 8px; }
+.scene-bar .act { display: flex; flex-direction: column; gap: 4px; align-items: center; flex: 1 1 100%; min-width: 0; }
+.scene-bar .act-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; max-width: 100%; min-width: 0; }
+.live-pill { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--tint); flex: none; }
+.seg button { all: unset; cursor: pointer; font-size: 0.8rem; font-weight: 500; padding: 4px 10px; border-radius: 7px; color: var(--muted); white-space: nowrap; }
+.seg button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.seg button:focus-visible { outline: 2px solid var(--accent); }
+.live-pill { font-size: 0.8rem; color: var(--muted); padding-inline: 6px; max-width: 100%; }
+.live-pill.on::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-right: 6px; vertical-align: 1px; }
+.live-pill.err { color: var(--warn); }
+/* the scene bar names what the 3D view shows */
+.mode-badge { flex: none; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 7px; border-radius: 6px; background: var(--tint); color: var(--muted); }
+.mode-badge.policy { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--accent); }
+.mode-badge.eval { background: color-mix(in srgb, #3b6fd8 16%, var(--surface)); color: #3b6fd8; }
+.mode-badge.live { background: color-mix(in srgb, var(--ok) 18%, var(--surface)); color: var(--ok); }
+.chip.primary-chip { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.mode-note { font-size: 0.8rem; margin: 0; line-height: 1.5; }
+.mode-note .mode-badge { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 12px; min-width: 0; }
+.panel h2 { font-size: 1.06rem; }
+.panel-head { display: grid; gap: 2px; padding-right: 24px; }
+.lede { color: var(--muted); font-size: 0.82rem; line-height: 1.4; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 12px; }
+.field { display: grid; gap: 4px; min-width: 0; align-content: start; }
+.field label, .field .lab { font-weight: 600; font-size: 0.8rem; }
+.field .hint, .hint { font-size: 0.74rem; color: var(--muted); line-height: 1.35; }
+input[type="number"], input[type="text"], input[type="url"], input[type="password"], select { font: inherit; font-size: 0.84rem; padding: 4px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; min-height: 30px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.toggle-row { display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.toggle-row input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+.toggle-row b { display: block; font-size: 0.82rem; }
+.toggle-row span { color: var(--muted); font-size: 0.74rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.card { all: unset; cursor: pointer; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 3px; align-content: start; background: var(--surface); transition: border-color 0.15s, box-shadow 0.15s; }
+.card:hover { border-color: color-mix(in srgb, var(--ink) 28%, var(--line)); }
+.card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card b { font-family: var(--font-display); font-size: 0.84rem; }
+.card span { color: var(--muted); font-size: 0.74rem; line-height: 1.35; }
+.card .tag { justify-self: start; font-size: 0.66rem; padding: 1px 7px; border-radius: 999px; background: var(--tint); color: var(--muted); font-weight: 600; letter-spacing: 0.02em; }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card:disabled { opacity: 0.5; cursor: not-allowed; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { font: inherit; font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; white-space: nowrap; }
+.chip:hover:not(:disabled) { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip.tog[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--ink); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.group-title { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.target { position: relative; cursor: pointer; border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 8px; }
+.target-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.target-head b { font-size: 0.86rem; }
+.swatch { width: 12px; height: 12px; border-radius: 4px; display: inline-block; vertical-align: -1px; margin-right: 6px; }
+.name-edit { border: 1px solid transparent; background: transparent; color: var(--muted); font-size: 0.82rem; width: 14ch; padding: 2px 4px; border-radius: 4px; }
+.name-edit:hover, .name-edit:focus { border-color: var(--line); color: inherit; background: var(--bg); outline: none; }
+/* a range as two boxes, minimum – maximum */
+.range2 { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 4px; align-items: center; }
+.range2 .to { color: var(--muted); font-size: 0.8rem; }
+.range2 input { padding-inline: 7px; appearance: textfield; -moz-appearance: textfield; }
+.range2 input::-webkit-inner-spin-button, .range2 input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.target.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.target.off { opacity: 0.55; background: rgba(127, 127, 127, 0.06); }
+/* two blocks of small icons at a card's top right: copy and paste, then order, on/off and remove */
+.target-tools { display: flex; gap: 10px; flex-wrap: nowrap; margin: -4px -4px 0 0; }
+.tool-block { display: flex; gap: 1px; }
+.icon-btn { border: 0; background: none; color: var(--muted); font-size: 0.95rem; line-height: 1; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; opacity: 0.75; display: inline-grid; place-items: center; padding: 0; }
+.icon-btn:hover:not(:disabled), .icon-btn:focus-visible { opacity: 1; background: rgba(127, 127, 127, 0.18); }
+.icon-btn:disabled { opacity: 0.3; cursor: default; }
+.target [data-row] { border-radius: 8px; outline: 1px solid transparent; outline-offset: 4px; }
+.target [data-row][data-rowsel] { outline-color: var(--accent); background: rgba(127, 127, 127, 0.07); }
+.screen-box, .tips, .wandb-box { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.screen-box summary, .tips summary, .panel details > summary { cursor: pointer; font-size: 0.82rem; }
+.tips { font-size: 0.78rem; color: var(--muted); }
+.tips ul { margin: 8px 0 2px; padding-left: 18px; display: grid; gap: 4px; }
+.foot { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 4px; }
+.save-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.save-row p { margin: 2px 0 0; font-size: 0.8rem; max-width: 46ch; }
+.wandb-box { display: grid; gap: 8px; }
+.wandb-head { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.wandb-head b { font-size: 0.84rem; }
+.wb-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: #ffcc33; color: #1a1c1f; font-size: 0.62rem; font-weight: 800; font-family: var(--font-mono); margin-right: 8px; vertical-align: -5px; }
+
+/* summary */
+.summary { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
+/* a hidden step panel keeps its grid cell, so the summary stays where it is */
+.overlay.step-closed #workspace { visibility: hidden; pointer-events: none; }
+.summary.closed .summary-body { display: none; }
+.summary .panel { padding: 14px; gap: 10px; position: relative; }
+.summary .panel > .group-title { padding-right: 24px; }
+.summary-sec { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
+.summary-body { display: grid; gap: 12px; }
+/* the small grey hyphen that minimises a panel */
+.min-btn { border: 0; background: none; color: var(--muted); font: inherit; font-size: 1.25rem; line-height: 1; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; opacity: 0.7; }
+.min-btn:hover, .min-btn:focus-visible { opacity: 1; background: rgba(127, 127, 127, 0.15); }
+.fold-btn { display: inline-grid; place-items: center; border: 1px solid var(--line); background: var(--surface); opacity: 0.85; }
+.fold-btn svg { display: block; }
+#workspace { position: relative; }
+#workspace > .min-btn, #summary-toggle, .dialog-close { position: absolute; top: 8px; right: 8px; z-index: 1; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.8rem; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+pre.code { margin: 0; font-family: var(--font-mono); font-size: 0.74rem; background: var(--tint); border-radius: 10px; padding: 10px 12px; max-height: 240px; overflow: auto; white-space: pre; }
+.est { font-family: var(--font-display); font-size: 1.15rem; }
+details.json > summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+
+/* run & evaluate */
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.chart .grid { stroke: var(--line); }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 6px; }
+.stat { border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; background: color-mix(in srgb, var(--tint) 45%, var(--surface)); }
+.stat b { font-family: var(--font-display); font-size: 1.02rem; display: block; font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 0.7rem; line-height: 1.25; display: block; }
+/* training tiles that pick the curve below */
+.stat-btn { font: inherit; color: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+.stat-btn:hover { border-color: color-mix(in srgb, var(--ink) 28%, var(--line)); }
+.stat-btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.log { font-family: var(--font-mono); font-size: 0.74rem; background: var(--tint); border-radius: 10px; padding: 10px 12px; max-height: 140px; overflow: auto; }
+.demo-banner { font-size: 0.78rem; color: var(--muted); border-left: 3px solid var(--line); padding-left: 10px; }
+.handoff { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.handoff h4 { margin: 0; font-family: var(--font-display); font-size: 0.95rem; }
+dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); padding: 22px; max-width: 520px; width: calc(100% - 32px); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
+.media { width: 100%; border-radius: 12px; background: var(--tint); display: block; }
+.err { color: var(--warn); font-size: 0.84rem; }
+.video-ph { aspect-ratio: 4 / 3; max-width: 100%; border-radius: 12px; background: linear-gradient(160deg, var(--tint), var(--line)); display: grid; place-items: center; color: var(--muted); font-size: 0.88rem; text-align: center; padding: 16px; }
+
+/* muscle activity card over the 3D view */
+.mcard { position: absolute; top: 14px; left: 50%; width: 296px; max-height: calc(100% - 96px); overflow: hidden auto; border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; font-size: 0.78rem; z-index: 2; scrollbar-width: thin; }
+/* on wide screens the card heads the right column, above the summary, off the body */
+.summary > .mcard { position: static; width: auto; max-height: none; overflow: visible; }
+.mcard-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.mcard-head .seg { margin-left: auto; }
+.mcard-head b { font-family: var(--font-display); font-size: 0.84rem; white-space: nowrap; }
+.mcard.closed .seg { display: none; }
+.mcard .min-btn { width: 24px; height: 24px; font-size: 1rem; flex: none; }
+.mcard .seg button { padding: 3px 6px; font-size: 0.74rem; }
+.mcard.closed .mcard-body { display: none; }
+.mcard-body { display: grid; gap: 7px; }
+.mbar, .mgroup { display: grid; grid-template-columns: minmax(0, 1fr) 84px 32px; gap: 8px; align-items: center; }
+.mgroups { display: grid; gap: 6px; }
+.mgroups.with-fatigue .mgroup { grid-template-columns: minmax(0, 1fr) 70px 32px 32px; }
+.mbar-name, .mgroup-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mbar-track { position: relative; height: 8px; border-radius: 4px; background: var(--tint); }
+.mbar-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; max-width: 100%; transition: width 0.08s linear; }
+.mbar-tick, .tick-key { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); opacity: 0.5; border-radius: 1px; }
+.tick-key { position: static; display: inline-block; height: 9px; margin: 0 1px; vertical-align: -1px; }
+.mbar-val { text-align: right; font-size: 0.72rem; color: var(--muted); }
+.mgroup-head { font-size: 0.68rem; }
+.mgroup-head > span:nth-child(2) { white-space: nowrap; }
+.mcard-note { font-size: 0.7rem; color: var(--muted); }
+/* evaluation: share of episodes that reached each target */
+.tgt-box { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.tgt-box b { font-size: 0.82rem; }
+.tgt-row { display: grid; grid-template-columns: 76px minmax(0, 1fr) 40px; gap: 8px; align-items: center; font-size: 0.76rem; }
+.tgt-row .mono { text-align: right; color: var(--muted); }
+.ood-box ul { margin: 0; padding-left: 16px; font-size: 0.72rem; display: grid; gap: 2px; overflow-wrap: anywhere; }
+/* joints: the band is a range of angles, the dot the angle now (red at a limit) */
+.mcard-kinds { display: inline-flex; align-items: center; gap: 1px; }
+.mcard-kinds b { min-width: 3.7em; text-align: center; }
+.kind-arrow { all: unset; cursor: pointer; width: 14px; height: 18px; display: grid; place-items: center; border-radius: 5px; color: var(--muted); font-size: 0.95rem; line-height: 1; }
+.kind-arrow:hover { color: var(--ink); background: var(--tint); }
+.kind-arrow:focus-visible { outline: 2px solid var(--accent); }
+.jtrack { overflow: visible; }
+.mbar.jrow, .mgroup.jrow { grid-template-columns: minmax(0, 1fr) 84px 34px; }
+.jband { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.jdot, .jdot-key { position: absolute; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1.5px var(--surface); }
+.jdot.limit { background: var(--warn); }
+.jdot-key { position: static; display: inline-block; margin: 0 2px 0 0; vertical-align: -1px; width: 8px; height: 8px; }
+.jband-key { display: inline-block; width: 14px; height: 7px; border-radius: 3px; vertical-align: 0; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+@media (max-width: 1100px) {
+  /* the nav stays pinned: the 3D view fills the screen below it and would otherwise trap scrolling */
+  .studio { scroll-margin-top: 46px; }
+  .nav-in { padding: 8px 12px; gap: 8px; }
+  .nav a.link, #connect-btn .wide { display: none; }
+  .brand { font-size: 0.95rem; gap: 7px; }
+  .brand-mark { width: 22px; height: 22px; }
+  .pill { padding: 3px 9px; font-size: 0.74rem; }
+  #conn-text { max-width: 36vw; }
+  #connect-btn { padding: 5px 10px; font-size: 0.8rem; }
+  .hero-in { grid-template-columns: 1fr; padding: 22px 16px 20px; gap: 16px; }
+  .hero h1 { font-size: 1.5rem; }
+  .hero p.lead { font-size: 0.94rem; margin-top: 8px; }
+  .hero .cta { margin-top: 14px; }
+  .hero .btn { padding: 7px 12px; font-size: 0.85rem; }
+  .steps-strip { display: none; }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px 16px; gap: 8px 14px; }
+  .fact b { font-size: 0.84rem; }
+  .fact span { display: none; }
+  /* the scene keeps the top of the screen; the steps live in a sheet below it */
+  .studio { height: calc(100svh - 46px); min-height: 440px; display: flex; flex-direction: column; }
+  #stage { position: relative; inset: auto; flex: 1 1 0; min-height: 30svh; }
+  .scene-bar { position: relative; left: auto !important; bottom: auto; transform: none; max-width: none !important; margin: 0; border-radius: 0; border-width: 1px 0 0; box-shadow: none; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; padding: 6px 10px; scrollbar-width: none; flex: none; }
+  .scene-bar::-webkit-scrollbar, .stepper::-webkit-scrollbar { display: none; }
+  .overlay { position: relative; inset: auto; display: flex; flex-direction: column; align-items: stretch; overflow-x: hidden; gap: 0; flex: 0 1 auto; max-height: 50svh; overflow-y: auto; padding: 0; background: var(--surface); border-top: 1px solid var(--line); pointer-events: auto; overscroll-behavior: contain; }
+  .overlay > * { max-height: none; overflow: visible; flex: none; }
+  .overlay > .gap { display: none; }
+  .overlay .panel, .stepper { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--surface); box-shadow: none; }
+  /* the step row scrolls sideways on its own, within the screen's width */
+  .stepper { position: sticky; top: 0; z-index: 2; display: flex; width: 100%; min-width: 0; touch-action: pan-x; overscroll-behavior-x: contain; gap: 2px; overflow-x: auto; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 6px 8px; scrollbar-width: none; }
+  .stepper button { grid-template-columns: auto auto; gap: 6px; padding: 5px 9px; font-size: 0.82rem; white-space: nowrap; }
+  .stepper button .n { width: 20px; height: 20px; font-size: 0.66rem; border-radius: 6px; }
+  #workspace { border: 0; border-radius: 0; padding: 12px 14px 16px; gap: 12px; }
+  .overlay.step-closed #workspace, .overlay.step-closed .summary { display: none; }
+  .summary { padding: 0 12px 14px; }
+  .summary .panel { border-radius: 12px; }
+  .panel h2 { font-size: 1rem; }
+  .target .hint, .toggle-row > span > span { display: none; }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  .card span:not(.tag) { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .scene-bar .act { order: -1; flex: none; }
+  .mcard { top: 8px; left: auto !important; right: 8px; width: min(64vw, 260px); max-height: calc(100% - 16px); padding: 7px 9px; gap: 6px; font-size: 0.7rem; }
+  .mcard.closed { width: auto; }
+  .mbar, .mgroup { grid-template-columns: minmax(0, 1fr) 58px 26px; gap: 6px; }
+  .mgroups.with-fatigue .mgroup { grid-template-columns: minmax(0, 1fr) 48px 26px 26px; }
+  .mbar.jrow, .mgroup.jrow { grid-template-columns: minmax(0, 1fr) 58px 30px; }
+  .mcard .seg button { padding: 3px 4px; font-size: 0.68rem; }
+  .mcard-head { gap: 4px; }
+  .mcard-kinds b { min-width: 3.3em; }
+}
+@media (max-width: 480px) { .brand .wide { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+
+<nav class="nav" aria-label="Main">
+  <div class="nav-in">
+    <span class="brand"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M8 23 L14 13 L21 16" fill="none" stroke="var(--accent-ink)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="23" r="2.4" fill="var(--accent-ink)"/><circle cx="14" cy="13" r="2.4" fill="var(--accent-ink)"/><circle cx="25" cy="9" r="3.2" fill="none" stroke="var(--logo-target, #14161b)" stroke-width="2.2"/><circle cx="25" cy="9" r="0.9" fill="var(--logo-target, #14161b)"/></svg><span>MyoInteract<span class="wide"> Studio</span></span></span>
+    <a class="link" href="#studio">Studio</a>
+    <a class="link" href="https://github.com/MyoInteract/MyoInteract">GitHub</a>
+    <a class="link" href="https://doi.org/10.1145/3800645.3812899" target="_blank" rel="noopener">Paper</a>
+    <button class="link link-btn" type="button" data-cite>Cite</button>
+    <span class="spacer"></span>
+    <span class="pill" id="conn-pill"><span class="dot"></span><span id="conn-text">Demo mode</span></span>
+    <button class="btn" id="connect-btn" type="button">Connect<span class="wide"> compute</span></button>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <h1>Teach a <em>muscle-driven user model</em> to interact with your interface</h1>
+      <p class="lead">Design an interaction task, train it on a GPU, and watch the policy move in your browser.</p>
+      <p class="paper-ref">From the DIS 2026 paper by Ankit Bhattarai, Hannah Selder, Florian Fischer, Arthur Fleig and Per Ola Kristensson. <a href="https://doi.org/10.1145/3800645.3812899" target="_blank" rel="noopener">Read the paper</a> · <button class="link-btn" type="button" data-cite>Cite it</button></p>
+      <div class="cta">
+        <button class="btn primary" type="button" id="hero-tour">Walkthrough</button>
+        <button class="btn" type="button" id="hero-preset">Try the pointing example</button>
+      </div>
+    </div>
+    <div class="steps-strip" aria-label="How it works">
+      <div class="strip-item"><span class="strip-num">1</span><div><b>Design</b> <span>· body, targets, sensing, reward</span></div></div>
+      <div class="strip-item"><span class="strip-num">2</span><div><b>Train</b> <span>· your GPU, Colab, a Space or a lab server</span></div></div>
+      <div class="strip-item"><span class="strip-num">3</span><div><b>Evaluate</b> <span>· success, speed, effort and muscle activity</span></div></div>
+    </div>
+  </div>
+</header>
+
+<section class="facts" aria-label="Highlights">
+  <div class="fact"><b>Cutting-edge arm and hand models</b><span>MyoArm and MoBL, with or without hand</span></div>
+  <div class="fact"><b>Complex pointing sequences</b><span>Spheres to point at, buttons to press</span></div>
+  <div class="fact"><b>Train and evaluate directly in your browser</b><span>MuJoCo in WebAssembly, nothing to install</span></div>
+  <div class="fact"><b>~50 000 steps/s</b><span>4096 environments on one RTX 5090</span></div>
+</section>
+
+<main class="studio" id="studio">
+  <div id="stage" role="img" aria-label="3D view of the body model and the targets"><div class="stage-msg" id="stage-msg">Loading the 3D view…</div></div>
+  <div class="scene-bar" id="scene-bar" role="toolbar" aria-label="3D view"></div>
+  <section class="mcard" id="mcard" aria-label="Muscle activity" hidden></section>
+  <div class="overlay">
+  <nav class="stepper" aria-label="Studio steps" id="stepper"></nav>
+  <section class="panel" id="workspace" aria-live="polite"></section>
+  <div class="gap"></div>
+  <aside class="summary" id="summary" aria-label="Configuration summary">
+    <div class="panel">
+      <button class="min-btn fold-btn" type="button" id="summary-toggle" aria-expanded="true" aria-label="Fold the config overview" title="Fold"></button>
+      <div class="group-title"><h3>Config overview</h3><input class="name-edit mono" id="preset-name" value="untitled" aria-label="Name of this setup" title="Click to rename this setup" spellcheck="false"></div>
+      <div class="summary-body">
+        <dl class="kv" id="summary-kv"></dl>
+        <div class="summary-sec">
+          <div class="group-title"><span class="muted" style="font-size:0.84rem">Training time · <span id="est-target">My GPU machine</span></span><span class="est" id="est-time">–</span></div>
+          <span class="hint" id="est-note"></span>
+        </div>
+        <div class="summary-sec">
+          <div class="field" id="preset-row" hidden><label for="preset-select" title="Task setups stored on the connected backend: the bundled examples and the ones saved here">Saved setups</label>
+            <div class="chips"><select id="preset-select" style="flex:1; width:auto"></select><button class="chip" type="button" id="preset-load">Load</button><button class="chip" type="button" id="preset-save">Save as…</button></div>
+            <span class="err" id="preset-msg"></span></div>
+          <div class="chips"><button class="btn small primary" type="button" data-save-cfg>Save configuration</button><label class="btn small" for="import-cfg" style="cursor:pointer">Upload</label><button class="chip" type="button" id="reset-setup" title="Back to the default setup (the browser keeps your setup otherwise)">Reset</button></div>
+          <div class="chips" id="reset-confirm" hidden><span class="muted" style="font-size:0.82rem">Reset every setting to the defaults? Runs and presets stay.</span><button class="chip" type="button" id="reset-yes">Reset</button><button class="chip" type="button" id="reset-no">Cancel</button></div>
+          <input type="file" id="import-cfg" accept="application/json,.json" hidden>
+          <span class="hint" id="cfg-note">One JSON file with the task and the learning settings: train from it with <span class="mono">myo_train --config &lt;file&gt;</span>, open it in the Gradio UI, or upload it here again.</span>
+          <span class="err" id="cfg-msg" role="status"></span>
+          <p class="demo-banner" id="cfg-warn" role="status" hidden></p>
+          <details class="json"><summary>Show the JSON</summary><pre class="code" id="cfg-json"></pre></details>
+        </div>
+      </div>
+    </div>
+  </aside>
+  </div>
+</main>
+
+<dialog id="cite-dialog" aria-labelledby="cite-title">
+  <form method="dialog" style="display:grid; gap:12px">
+    <button class="min-btn dialog-close" value="cancel" type="submit" aria-label="Close" title="Close">&times;</button>
+    <h3 id="cite-title">Cite MyoInteract</h3>
+    <p style="font-size:0.88rem; margin:0">Ankit Bhattarai, Hannah Selder, Florian Fischer, Arthur Fleig and Per Ola Kristensson. <b>MyoInteract: A Framework for Fast Prototyping of Biomechanical HCI Tasks using Reinforcement Learning.</b> Proceedings of the 2026 Designing Interactive Systems Conference (DIS '26), 2829–2851. <a href="https://doi.org/10.1145/3800645.3812899" target="_blank" rel="noopener">doi:10.1145/3800645.3812899</a></p>
+    <pre class="code" id="cite-bib">@inproceedings{bhattarai2026myointeract,
+  author={Bhattarai, Ankit and Selder, Hannah and Fischer, Florian and Fleig, Arthur and Kristensson, Per Ola},
+  title={MyoInteract: A Framework for Fast Prototyping of Biomechanical HCI Tasks using Reinforcement Learning},
+  booktitle={Proceedings of the 2026 Designing Interactive Systems Conference},
+  series={DIS '26},
+  year={2026},
+  pages={2829--2851},
+  publisher={Association for Computing Machinery},
+  address={New York, NY, USA},
+  location={Singapore, Singapore},
+  doi={10.1145/3800645.3812899},
+  url={https://doi.org/10.1145/3800645.3812899},
+}</pre>
+    <div class="foot" style="justify-content:flex-end"><button class="btn primary" type="button" id="cite-copy">Copy BibTeX</button></div>
+  </form>
+</dialog>
+
+<dialog id="wandb-dialog" aria-labelledby="wandb-title">
+  <form method="dialog" style="display:grid; gap:14px">
+    <button class="min-btn dialog-close" value="cancel" type="submit" aria-label="Close" title="Close">&times;</button>
+    <h3 id="wandb-title"><span class="wb-mark">W&amp;B</span>Connect Weights &amp; Biases</h3>
+    <p class="muted" style="font-size:0.9rem">Training curves and checkpoints of the runs you start here also go to your W&amp;B account. The key goes only to your backend, which checks it with W&amp;B; this page does not keep it.</p>
+    <div class="field"><label for="wandb-key">API key</label><input type="password" id="wandb-key" autocomplete="off" spellcheck="false" placeholder="paste the key">
+      <span class="hint">Copy it from <a href="https://wandb.ai/authorize" target="_blank" rel="noopener">wandb.ai/authorize</a>.</span></div>
+    <label class="toggle-row"><input type="checkbox" id="wandb-remember"><span><b>Remember on the backend machine</b><span>Saves the key with <span class="mono">wandb login</span> (in ~/.netrc), so it outlasts a restart of the server. Otherwise the server forgets it when it stops.</span></span></label>
+    <div class="foot" style="justify-content:flex-end"><button class="btn primary" type="button" id="wandb-go">Connect</button></div>
+    <span class="muted" id="wandb-status" role="status" style="font-size:0.88rem"></span>
+  </form>
+</dialog>
+
+<dialog id="connect-dialog" aria-labelledby="connect-title">
+  <form method="dialog" id="connect-form" style="display:grid; gap:14px">
+    <button class="min-btn dialog-close" value="cancel" type="submit" aria-label="Close" title="Close">&times;</button>
+    <h3 id="connect-title">Connect compute</h3>
+    <p class="muted">Studio talks to a myoInteract backend. Start it where your GPU is, then paste its address. Opened from the backend itself (<span class="mono">myo_studio serve</span>), Studio connects on its own.</p>
+    <p class="demo-banner" id="conn-mobile" hidden></p>
+    <div class="cards" id="conn-cards"></div>
+    <div class="field"><label for="backend-url">Backend address</label><input type="url" id="backend-url" placeholder="http://localhost:8000"><span class="hint" id="conn-hint"></span></div>
+    <div class="field" id="pair-field"><label for="pair-code">Pairing code</label><input type="text" id="pair-code" autocomplete="off" spellcheck="false" placeholder="e.g. 3fa9c2"><span class="hint"><span class="mono">myo_studio serve</span> prints it in its terminal. Only needed when this page is not served by Studio itself.</span></div>
+    <pre class="code" id="conn-cmd"></pre>
+    <div class="foot" style="justify-content:flex-end"><button class="btn primary" type="button" id="conn-go">Connect</button></div>
+    <span class="muted" id="conn-status" role="status"></span>
+    <div class="handoff" id="handoff" hidden>
+      <h4>Or continue on my machine</h4>
+      <p class="muted">A page hosted on another website may not be allowed to reach a server on your computer. Start <span class="mono">myo_studio serve</span>, then open your local Studio with everything you set here.</p>
+      <div class="chips"><a class="btn primary" id="handoff-link" href="http://localhost:8000/" target="_blank" rel="noopener">Open local Studio with this setup</a><button class="btn" type="button" id="handoff-copy">Copy setup</button></div>
+      <span class="hint">The setup travels in the link after the "#", which browsers never send to a server. If the link does not open, save the configuration here and upload it in the local Studio.</span>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  /* ---------------------------------------------------------------- options (from ui.py) */
+  const MODELS = [
+    { id: "MyoArm_nohand", name: "MyoArm (no hand)", note: "MyoSuite arm with detailed shoulder musculature (myo_sim 0.2.3); the default for pointing.", tag: "default" },
+    { id: "MyoArm_pointing", name: "MyoArm (pointing hand)", note: "MyoSuite arm whose hand points: index finger straight, the other fingers curled. For buttons and touch screens.", tag: "pointing" },
+    { id: "MyoArm", name: "MyoArm", note: "MyoSuite arm and hand, 63 muscles (myo_sim 0.2.3).", tag: "hand" },
+    { id: "MoBL_Arms_Index", name: "MoBL arm (index finger)", note: "Shoulder, elbow and wrist with a pointing finger.", tag: "MoBL" },
+    { id: "MoBL_Arms_Hand", name: "MoBL arm (full hand)", note: "Adds hand and finger joints for button pressing.", tag: "MoBL · hand" },
+  ];
+  const RESETS = [
+    ["epsilon_uniform", "Rest pose with small random offsets (default)"],
+    ["zero", "Rest pose (fixed)"],
+    ["range_uniform", "Anywhere in the joint ranges (random)"],
+    ["initpose001", "Ready-to-touch pose (fixed)"],
+    ["initpose001_epsilon_uniform", "Ready-to-touch pose with small random offsets"],
+    ["None", "Model's default pose"],
+  ];
+  const OBS = {
+    body: [["qpos", "joint angles"], ["qvel", "joint velocities"], ["qacc", "joint accelerations"], ["ee_pos", "fingertip position"], ["act", "muscle activations"]],
+    fatigue: [["MA", "active fraction"], ["MR", "resting fraction"], ["MF", "fatigued fraction"]],
+    vision: [["rgb", "colour camera"], ["depth", "depth camera"]],
+    task: [["target_pos", "target position"], ["target_size", "target size"], ["phase_progress", "which target is next"], ["dwell_fraction", "time held inside"]],
+  };
+  const REWARDS = [
+    ["distance", 1, 0, 10, 0.1, "Pays for getting closer to the current target, every step. The main learning signal."],
+    ["subtask_bonus", 0, 0, 10, 0.5, "One-off bonus for each target reached in a sequence."],
+    ["completion_bonus", 10, 0, 50, 1, "One-off bonus when the whole task is done."],
+    ["neural_effort", 0, 0, 0.1, 0.0001, "Penalises large muscle commands: smoother, more human-like movements."],
+    ["body_contact_penalty", 0, 0, 0.01, 0.0001, "Penalises touching the torso with the arm."],
+    // The terms below have no slider in the Gradio UI: it keeps a preset's values but cannot change them.
+    ["action_rate", 0, 0, 0.05, 0.0001, "Penalises changing the muscle commands from one step to the next: less jitter.", true],
+    ["pain_penalty", 0, 0, 2, 0.01, "Penalises holding a joint beyond its comfortable range.", true],
+    ["pronation", 0, 0, 5, 0.05, "Penalises a forearm turned palm-up: the palm faces down, as people point and press.", true],
+    ["button_force", 0, 0, 15, 0.05, "Penalises pressing a button harder than a deliberate press (5 N).", true],
+  ];
+  // Reward terms the Gradio task builder has no control for: stored in presets as Hydra overrides.
+  const EXTRA_REWARDS = REWARDS.filter((r) => r[6]).map((r) => r[0]);
+  const TARGETS = {
+    "My GPU machine": { key: "local", speed: 48000, desktop: true, note: "A computer with an NVIDIA GPU: this one, or a lab server over SSH.", cmd: "pip install \"myoInteract[all] @ git+https://github.com/MyoInteract/MyoInteract.git@v1.0.0\"\nmyo_studio serve               # opens http://localhost:8000; prints the pairing code for hosted pages\n\n# on a lab server: tunnel its port first, run the two lines there, then open http://localhost:8000\nssh -L 8000:localhost:8000 you@gpu-server\nmyo_studio serve --no-browser" },
+    "Google Colab": { key: "colab", speed: 9000, note: "Free T4 GPU, about 5x slower than an RTX 5090. Studio runs inside the Colab session.", cmd: "# open in Colab and run the two cells:\n# https://colab.research.google.com/github/MyoInteract/MyoInteract/blob/main/tutorials/myointeract/studio_colab.ipynb\nfrom myoInteract.studio.colab import launch\nlaunch()  # prints the link that opens Studio" },
+    "Hugging Face Space": { key: "hf", speed: 9000, note: "A private Space in my Hugging Face account, on the GPU you pick there.", cmd: "# New Space -> Docker -> Blank, private; then upload the template:\nhf upload <user>/myointeract-studio hf_space_studio . --repo-type space\n# pick GPU hardware in the Space's settings and open the Space" },
+  };
+  const MOBILE_NOTE = "On a phone or tablet, Studio designs the task but cannot train it: save the configuration, then train from a computer, on its own NVIDIA GPU, in Google Colab or in a Hugging Face Space.";
+  const COLORS = ["#d9432a", "#3b4250", "#c98a2b", "#7a4a8c", "#2f7d6d", "#8a8f98"];
+
+  /* ---------------------------------------------------------------- state */
+  const S = {
+    runMetric: "success",  // the curve the Train step plots
+    step: 0, done: new Set(), preset: "untitled", target: "My GPU machine", backend: null,
+    bm: { bm_model: "MyoArm_nohand", ctrl_dt: 0.05, reset_type: "epsilon_uniform", sigdepnoise_enabled: false, constantnoise_enabled: false, fatigue_enabled: false, mj_impl_type: "mjlab" },
+    task: { max_duration: 4, reject_unreachable: true },
+    targets: [{ type: "Sphere", x: [0.225, 0.375], y: [-0.036, 0.036], z: [-0.3, -0.3], size: [0.01, 0.03], dwell: 0.25, force: 1, angle: 90, color: COLORS[0] }],
+    obs: { qpos: true, qvel: true, qacc: true, ee_pos: true, act: true, MA: false, MR: false, MF: false, rgb: false, depth: false, target_pos: true, target_size: true, phase_progress: true, dwell_fraction: true },
+    reward: Object.fromEntries(REWARDS.map((r) => [r[0], r[1]])),
+    rl: { steps: 10_000_000, envs: 1024, unroll: 10, minibatches: 8, epochs: 8, ckpt: 30, seed: 14 },
+    run: null, preview: null, evalJob: null, runs: [], presets: [], sel: null, clip: null, viewer: null,
+    view: "perspective", stepOpen: true, row: null, rowClip: null, clipKind: null, showReach: true, showMuscles: true, showSkin: true, mode: "translate", screen: null, live: null, liveSocket: null, liveStatus: "",
+    examples: [], exampleSel: null, replay: null, sim: null, evalMode: "live", evalMetric: "success", evalTask: "trained", paused: false,
+  };
+  const DEFAULTS = structuredClone({ bm: S.bm, task: S.task, obs: S.obs, reward: S.reward, rl: S.rl, targets: S.targets });
+  // "This machine" and "Lab server" are one option now; wide screens remember a folded step panel, phones open it.
+  try { const t = localStorage.getItem("studio-target"), target = { "This machine": "My GPU machine", "Lab server": "My GPU machine" }[t] || t; if (target && TARGETS[target]) S.target = target; S.stepOpen = matchMedia("(max-width: 1100px)").matches || localStorage.getItem("studio-step-open") !== "0"; } catch (e) {}
+  // Phones and tablets cannot run the backend themselves: "My GPU machine" is off there and Colab the default.
+  const MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia("(pointer: coarse)").matches && matchMedia("(max-width: 1100px)").matches);
+  const usable = (name) => !(MOBILE && TARGETS[name].desktop);
+  const targetOrder = () => Object.entries(TARGETS).sort(([a], [b]) => usable(b) - usable(a));  // options a phone cannot use go last
+  if (!usable(S.target)) S.target = "Google Colab";
+
+  const EXPORT_3D = false;  // the "Export 3D (glTF)" chip in the scene bar
+  const STEPS = [
+    ["Body", renderBody], ["Task", renderTask], ["Sensing", renderSensing], ["Reward", renderReward],
+    ["Training", renderTraining], ["Run", renderRun], ["Evaluate", renderEvaluate],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const h = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content; };
+  // A step panel's header: where in the flow, the title and one line on what the choice decides.
+  const head = (title, lede = "") => `<div class="panel-head"><span class="eyebrow">Step ${S.step + 1} of ${STEPS.length}</span><h2>${title}</h2>${lede ? `<p class="lede">${lede}</p>` : ""}</div>`;
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  /* ---------------------------------------------------------------- backend */
+  // A page served elsewhere (e.g. the hosted Studio) proves with the server's pairing code that its user may use it.
+  const authHeaders = (h = {}) => (S.token ? { ...h, "X-Studio-Token": S.token } : h);
+  const pairKey = (url) => "studio-pairing:" + url;
+  async function api(path, opts = {}) {
+    const r = await fetch(S.backend + path, { headers: authHeaders({ "Content-Type": "application/json" }), ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.detail || "HTTP " + r.status);
+    return data;
+  }
+  const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+  async function pollJob(id, onUpdate) {
+    for (;;) {
+      const j = await api("/api/jobs/" + id);
+      if (onUpdate) onUpdate(j);
+      if (j.status !== "running") return j;
+      await sleep(2000);
+    }
+  }
+  function setConnected(url, label) {
+    if (S.backend !== url) S.run = null; // monitoring belongs to the backend that started the run
+    S.backend = url;
+    $("conn-pill").classList.add("on");
+    $("conn-text").textContent = label;
+    api("/api/presets").then((ps) => { if (S.backend === url) { S.presets = ps; renderPresetList(); } }).catch(() => {});
+    loadWandb();
+  }
+  const fmt = (n) => n >= 1e6 ? (n / 1e6).toFixed(n % 1e6 ? 1 : 0) + " M" : n >= 1e3 ? (n / 1e3).toFixed(0) + " k" : String(n);
+
+  /* ---------------------------------------------------------------- shell */
+  function renderStepper() {
+    const nav = $("stepper");
+    nav.innerHTML = "";
+    STEPS.forEach(([name], i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.innerHTML = `<span class="n">${i + 1}</span><span>${name}</span>`;
+      if (i === S.step) b.setAttribute("aria-current", "step");
+      if (S.done.has(i)) b.classList.add("done");
+      b.addEventListener("click", () => { if (i === S.step) setStepOpen(!S.stepOpen); else { S.stepOpen = true; go(i); } });
+      nav.append(b);
+    });
+    // Narrow screens scroll the steps sideways: keep the current one in view.
+    const cur = nav.querySelector('[aria-current="step"]');
+    if (cur && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2;
+  }
+  function go(i) {
+    S.done.add(S.step);
+    S.step = Math.max(0, Math.min(STEPS.length - 1, i));
+    S.paused = false;
+    render();
+    document.getElementById("studio").scrollIntoView({ block: "start" });
+  }
+  function footer(ws) {
+    const f = h(`<div class="foot">
+      <button class="btn" type="button" ${S.step === 0 ? "disabled" : ""} data-go="${S.step - 1}">Back</button>
+      ${S.step < STEPS.length - 1 ? `<button class="btn primary" type="button" data-go="${S.step + 1}">Next: ${STEPS[S.step + 1][0]}</button>` : ""}
+    </div>`);
+    f.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => go(+b.dataset.go)));
+    ws.append(f);
+  }
+  // Fold buttons: a triangle pointing down while a panel is open, to the right while folded.
+  const foldIcon = (open) => `<svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="${open ? "M2 4h8L6 9z" : "M4 2v8l5-4z"}" fill="currentColor"/></svg>`;
+  function render() {
+    renderStepper();
+    const ws = $("workspace");
+    ws.innerHTML = "";
+    STEPS[S.step][1](ws);
+    footer(ws);
+    const min = h(`<button class="min-btn fold-btn" type="button" aria-expanded="true" aria-label="Fold this panel" title="Fold (tap a step to open it again)">${foldIcon(true)}</button>`).firstElementChild;
+    min.addEventListener("click", () => setStepOpen(false));
+    ws.prepend(min);
+    renderSummary();
+    syncScene();
+    renderSceneBar();
+  }
+  function bindInputs(root) {
+    root.querySelectorAll("[data-bind]").forEach((el) => {
+      const [group, key, idx] = el.dataset.bind.split(".");
+      const obj = group === "t" ? S.targets[+key] : S[group];
+      const prop = group === "t" ? idx : key;
+      const sub = group === "t" ? el.dataset.sub : null;
+      const read = () => el.type === "checkbox" ? el.checked : el.type === "number" || el.type === "range" || (group === "rl" && prop === "envs") ? parseFloat(el.value) : el.value;
+      el.addEventListener("input", () => {
+        if (sub != null) {
+          obj[prop][+sub] = read();
+          const [lo, hi] = obj[prop];
+          if (lo > hi) {  // a range: the edited bound pushes the other one along (min <= max)
+            obj[prop][+sub === 0 ? 1 : 0] = obj[prop][+sub];
+            const other = root.querySelector(`[data-bind="${el.dataset.bind}"][data-sub="${+sub === 0 ? 1 : 0}"]`);
+            if (other) other.value = obj[prop][+sub];
+          }
+        } else obj[prop] = read();
+        if (el.dataset.live) { const o = root.querySelector(`#${el.dataset.live}`); if (o) o.textContent = el.value; }
+        if (el.dataset.redraw) syncScene();
+        renderSummary();
+      });
+    });
+  }
+
+  /* ---------------------------------------------------------------- 1 body */
+  function renderBody(ws) {
+    ws.append(h(`${head("Choose the body", "Which muscles the agent controls and what it can reach. No hand for pointing; a hand for buttons and keys.")}
+      <div class="cards" id="model-cards"></div>
+      <div class="grid2">
+        <div class="field"><label for="ctrl_dt">Control step</label><input id="ctrl_dt" type="number" min="0.01" max="0.2" step="0.01" value="${esc(S.bm.ctrl_dt)}" data-bind="bm.ctrl_dt"><span class="hint">Seconds between two muscle commands. 0.05 s (20 Hz) is a good default; smaller is slower to train.</span></div>
+        <div class="field"><label for="reset_type">Start pose</label><select id="reset_type" data-bind="bm.reset_type">${RESETS.map(([v, l]) => `<option value="${v}" ${S.bm.reset_type === v ? "selected" : ""}>${l}</option>`).join("")}</select><span class="hint">Random start poses make the policy more robust.</span></div>
+      </div>
+      <div class="grid2">
+        <label class="toggle-row"><input type="checkbox" data-bind="bm.sigdepnoise_enabled" ${S.bm.sigdepnoise_enabled ? "checked" : ""}><span><b>Signal-dependent motor noise</b><span>Motor noise grows with the muscle command, as in human motor control. Produces speed-accuracy trade-offs.</span></span></label>
+        <label class="toggle-row"><input type="checkbox" data-bind="bm.constantnoise_enabled" ${S.bm.constantnoise_enabled ? "checked" : ""}><span><b>Constant motor noise</b><span>A fixed amount of motor noise on every command.</span></span></label>
+        <label class="toggle-row"><input type="checkbox" data-bind="bm.fatigue_enabled" ${S.bm.fatigue_enabled ? "checked" : ""}><span><b>Muscle fatigue</b><span>Muscles tire with use and recover at rest (3-compartment model). Enables the fatigue observations in step 3.</span></span></label>
+      </div>`));
+    const cards = ws.querySelector("#model-cards");
+    for (const m of MODELS) {
+      const b = document.createElement("button");
+      b.className = "card"; b.type = "button";
+      b.setAttribute("aria-pressed", String(S.bm.bm_model === m.id));
+      b.innerHTML = `<span class="tag">${m.tag}</span><b>${m.name}</b><span>${m.note}</span>`;
+      b.addEventListener("click", () => { S.bm.bm_model = m.id; render(); });
+      cards.append(b);
+    }
+    bindInputs(ws);
+    ws.querySelector('[data-bind="bm.fatigue_enabled"]').addEventListener("change", () => { if (!S.bm.fatigue_enabled) { S.obs.MA = S.obs.MR = S.obs.MF = false; } renderSummary(); });
+  }
+
+  /* ---------------------------------------------------------------- 2 task */
+  // Targets that are switched on, in order: the task. A target's number is its place among them.
+  const liveTargets = () => S.targets.filter((t) => !t.disabled);
+  const targetNumber = (i) => (S.targets[i].disabled ? 0 : S.targets.slice(0, i + 1).filter((t) => !t.disabled).length);
+  // What a copy carries from one target to another: everything but its identity in the list.
+  const targetSettings = (t) => { const c = structuredClone(t); ["color", "screenEl", "disabled", "turned"].forEach((k) => delete c[k]); return c; };
+  // Rows that can take each other's values: the three position ranges, or the same setting.
+  const rowKind = (key) => (["x", "y", "z"].includes(key) ? "position" : key);
+  function clearRow() {
+    S.row = null;
+    document.querySelectorAll("[data-rowsel]").forEach((o) => o.removeAttribute("data-rowsel"));
+  }
+  // A click anywhere but on a row takes the mark off again (what was copied stays copied).
+  document.addEventListener("pointerdown", (ev) => { if (S.row && !(ev.target.closest && ev.target.closest("[data-row]"))) clearRow(); });
+  function copyRow() {
+    const t = S.targets[S.row.i];
+    S.rowClip = { kind: rowKind(S.row.key), value: structuredClone(t[S.row.key]) };
+    S.clipKind = "row";
+  }
+  function pasteRow() {
+    const t = S.targets[S.row.i];
+    if (!S.rowClip || S.rowClip.kind !== rowKind(S.row.key) || !(S.row.key in t)) return false;
+    t[S.row.key] = structuredClone(S.rowClip.value);
+    if (rowKind(S.row.key) === "position") delete t.screenEl;  // moved by hand: no longer pinned to the screen
+    render();
+    return true;
+  }
+  function copyTarget(i) { S.clip = targetSettings(S.targets[i]); S.clipKind = "target"; }
+  function pasteInto(i) {
+    if (!S.clip) return;
+    const keep = S.targets[i];
+    S.targets[i] = { ...S.clip, color: keep.color, ...(keep.disabled ? { disabled: true } : {}) };
+    S.sel = i;
+    render();
+  }
+  // "Part of the task" / "switched off" icons of a target card.
+  const EYE = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const EYE_OFF = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.1 3.9M6.5 6.6A17.300 17.300 0 0 0 2 12s3.600 7 10 7a9.500 9.500 0 0 0 5-1.400M9.900 9.900a3 3 0 0 0 4.200 4.200"/><line x1="3" y1="3" x2="21" y2="21"/></svg>`;
+  function targetHtml(t, i) {
+    const row = (key) => `data-row="${i}.${key}"${S.row && S.row.i === i && S.row.key === key ? ' data-rowsel="1"' : ""}`;
+    const r = (key, label, hint, min, max, step) => `<div class="field" ${row(key)}><span class="lab">${label}</span><div class="range2">
+      <input type="number" aria-label="${label} minimum" min="${min}" max="${max}" step="${step}" value="${esc(t[key][0])}" data-bind="t.${i}.${key}" data-sub="0" data-redraw="1"><span class="to" aria-hidden="true">–</span>
+      <input type="number" aria-label="${label} maximum" min="${min}" max="${max}" step="${step}" value="${esc(t[key][1])}" data-bind="t.${i}.${key}" data-sub="1" data-redraw="1"></div><span class="hint">${hint}</span></div>`;
+    const num = targetNumber(i);
+    const only = S.targets.length <= 1, lastOn = !t.disabled && liveTargets().length <= 1;
+    const icon = (attr, title, glyph, off = false, cls = "") => `<button class="icon-btn${cls}" type="button" ${attr} title="${title}" aria-label="${title}" ${off ? "disabled" : ""}>${glyph}</button>`;
+    return `<div class="target${S.sel === i ? " selected" : ""}${t.disabled ? " off" : ""}" data-target="${i}">
+      <div class="target-head"><b><span class="swatch" style="background:${esc(t.disabled ? "#9aa0a6" : t.color)}"></span>${num ? "Target " + num : "Target (off)"}</b>
+        <span class="target-tools">
+          <span class="tool-block">${icon(`data-copy="${i}"`, "Copy this target's settings (Ctrl+C)", "&#x29C9;")}${icon(`data-paste="${i}"`, "Paste the copied settings into this target (Ctrl+V)", "&#x2398;", !S.clip)}</span>
+          <span class="tool-block">${icon(`data-move="${i},-1"`, "Earlier in the sequence", "&uarr;", only || i === 0)}${icon(`data-move="${i},1"`, "Later in the sequence", "&darr;", only || i === S.targets.length - 1)}${icon(`data-toggle="${i}" aria-pressed="${!t.disabled}"`, t.disabled ? "Switched off: left out of the task, but kept in its place. Click to switch it on" : "Part of the task. Click to switch it off for now", t.disabled ? EYE_OFF : EYE, lastOn, " eye")}${icon(`data-remove="${i}"`, "Remove this target", "&times;", only || lastOn)}</span>
+        </span></div>
+      <div class="chips">${["Sphere", "Button"].map((k) => `<button class="chip" type="button" data-type="${k}" data-i="${i}" aria-pressed="${t.type === k}">${k === "Sphere" ? "Sphere (point at it)" : "Button (press it)"}</button>`).join("")}</div>
+      <div class="grid2">
+        ${r("x", "Forward (m)", "Distance in front of the shoulder (x).", -1, 1, 0.005)}
+        ${r("y", "Sideways (m)", "Right (–) to left (+) of the shoulder (y).", -1, 1, 0.005)}
+        ${r("z", "Vertical (m)", "Below (–) or above (+) the shoulder (z).", -1, 1, 0.005)}
+        ${t.type === "Sphere" ? r("size", "Radius (m)", "Each episode draws a size from this range.", 0.005, 0.2, 0.005) + `<div class="field" ${row("dwell")}><label>Dwell time (s)</label><input type="number" min="0" max="2" step="0.05" value="${esc(t.dwell)}" data-bind="t.${i}.dwell"><span class="hint">How long the fingertip must stay inside to count as a hit.</span></div>`
+          : `<div class="field" ${row("force")}><label>Minimum force (N)</label><input type="number" min="0" max="20" step="0.5" value="${esc(t.force)}" data-bind="t.${i}.force"><span class="hint">How hard the button must be pressed.</span></div><div class="field" ${row("angle")}><label>Angle (°)</label><input type="number" min="0" max="180" step="5" value="${esc(t.angle)}" data-bind="t.${i}.angle"><span class="hint">Tilt of the button surface.</span></div>`}
+      </div></div>`;
+  }
+  function renderTask(ws) {
+    ws.append(h(`${head("Place the targets", "Each episode draws every target from its region; several targets are visited in order.")}
+      <details class="tips"><summary>Editing tips</summary><ul>
+        <li>${touch ? "Tap" : "Click"} a target in the scene and drag its arrows to move it; <b>Resize</b> stretches its region instead.</li>
+        ${touch ? "" : "<li>Double-click adds a target where you point; Delete removes the selected one.</li><li>Ctrl+C copies the selected target; Ctrl+V over the scene adds a copy there, elsewhere it pastes the settings into the selected target. Click a row below to copy just that row.</li>"}
+        <li>Keep regions inside the faint reach sphere around the shoulder, or let out-of-reach targets be rejected.</li>
+        <li><b>User View</b> shows the task as the simulated user sees it.</li></ul></details>
+      <span class="err" id="sketch-msg" role="status"></span>
+      <div id="targets" style="display:grid; gap:12px"></div>
+      <div class="chips"><button class="btn" type="button" id="add-target">Add a target</button></div>
+      ${screenHtml()}
+      <div class="grid2">
+        <div class="field"><label for="max_duration">Episode length (s)</label><input id="max_duration" type="number" min="1" max="60" step="0.5" value="${esc(S.task.max_duration)}" data-bind="task.max_duration"><span class="hint">Time to finish all targets before the episode ends.</span></div>
+        <label class="toggle-row"><input type="checkbox" data-bind="task.reject_unreachable" ${S.task.reject_unreachable ? "checked" : ""}><span><b>Reject out-of-reach targets</b><span>Redraw a target that the arm cannot reach.</span></span></label>
+      </div>`));
+    const box = ws.querySelector("#targets");
+    S.targets.forEach((t, i) => box.append(h(targetHtml(t, i))));
+    box.querySelectorAll("[data-type]").forEach((b) => b.addEventListener("click", () => { S.targets[+b.dataset.i].type = b.dataset.type; render(); }));
+    box.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", () => removeTarget(+b.dataset.remove)));
+    // Targets are visited in the order listed: the arrows swap a target with its neighbour, and
+    // the moved target stays the selected one.
+    box.querySelectorAll("[data-move]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const [i, d] = b.dataset.move.split(",").map(Number), j = i + d;
+      if (j < 0 || j >= S.targets.length) return;
+      [S.targets[i], S.targets[j]] = [S.targets[j], S.targets[i]];
+      S.sel = j;
+      S.row = null;
+      render();
+      showTarget(j);
+    }));
+    box.querySelectorAll("[data-toggle]").forEach((b) => b.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const t = S.targets[+b.dataset.toggle];
+      if (!t.disabled && liveTargets().length <= 1) return;  // the task needs at least one target
+      if (t.disabled) delete t.disabled; else t.disabled = true;
+      render();
+    }));
+    box.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); copyTarget(+b.dataset.copy); S.sel = +b.dataset.copy; render(); }));
+    box.querySelectorAll("[data-paste]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); pasteInto(+b.dataset.paste); }));
+    // A click (or focus) in a row marks it, for Ctrl+C and Ctrl+V between rows of the same kind.
+    box.querySelectorAll("[data-row]").forEach((el) => {
+      const mark = () => {
+        const [i, key] = el.dataset.row.split(".");
+        S.row = { i: +i, key };
+        box.querySelectorAll("[data-rowsel]").forEach((o) => o.removeAttribute("data-rowsel"));
+        el.setAttribute("data-rowsel", "1");
+      };
+      el.addEventListener("click", mark);
+      el.addEventListener("focusin", mark);
+    });
+    box.querySelectorAll(".target").forEach((el, i) => {
+      el.addEventListener("focusin", () => selectTarget(i));
+      el.addEventListener("click", () => selectTarget(i));
+    });
+    ws.querySelector("#add-target").addEventListener("click", () => {
+      const last = S.targets[S.targets.length - 1];
+      const t = { ...structuredClone(last), y: [last.y[0] + 0.1, last.y[1] + 0.1], color: COLORS[S.targets.length % COLORS.length] };
+      delete t.screenEl;
+      S.targets.push(t);
+      S.sel = S.targets.length - 1;
+      render();
+      showTarget(S.sel);
+    });
+    bindInputs(ws);
+    bindScreen(ws);
+  }
+  // Scroll the step panel to a target's entry (e.g. one just added in the 3D view).
+  function showTarget(i) {
+    const el = document.querySelector(`.target[data-target="${i}"]`);
+    if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+  function selectTarget(i, fromScene = false) {
+    if (S.sel === i) return;
+    S.sel = i;
+    document.querySelectorAll(".target[data-target]").forEach((el) => el.classList.toggle("selected", +el.dataset.target === i));
+    if (fromScene && typeof i === "number") { const el = document.querySelector(`.target[data-target="${i}"]`); if (el) el.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    if (!fromScene && SC) SC.select(i, true);
+    renderSceneBar();
+  }
+
+  /* ---------------------------------------------------------------- screen (Figma frame or image) */
+  function screenHtml() {
+    const sc = S.screen;
+    return `<details class="screen-box" ${sc ? "open" : ""}><summary><b>Screen in front of the user</b> <span class="muted">· from Figma or an image</span></summary>
+      <div style="display:grid; gap:12px; margin-top:12px">
+        <p class="hint">Place a user interface in the scene. From a Figma frame, its buttons and other controls can become targets that stay on the screen when you move it.</p>
+        <div class="field"><label for="figma-url">Figma frame link</label><input type="url" id="figma-url" placeholder="https://www.figma.com/design/…?node-id=…" value="${esc((S.figma && S.figma.url) || "")}"><span class="hint">In Figma, select the frame and use "Copy link to selection".</span></div>
+        <div class="field"><label for="figma-token">Personal access token</label><input type="password" id="figma-token" autocomplete="off" placeholder="figd_…" value="${esc(figmaToken())}">
+          <label class="hint" style="display:flex; gap:6px; align-items:center"><input type="checkbox" id="figma-remember" ${figmaRemembered() ? "checked" : ""}> Remember the token in this browser</label>
+          <span class="hint">Sent only to Figma (api.figma.com). Unticked, it is kept until this tab closes; ticked, it stays in this browser's storage for this site, readable by anyone using this browser profile. Use a read-only token.</span></div>
+        <div class="chips"><button class="btn" type="button" id="figma-go">Import from Figma</button></div>
+        <div class="chips"><label class="chip" for="screen-file" style="cursor:pointer">Or use an image</label><input type="file" id="screen-file" accept="image/png,image/jpeg,image/webp" hidden></div>
+        ${sc ? `<div class="field"><label for="screen-width">Screen width (m)</label><input type="number" id="screen-width" min="0.05" max="2" step="0.01" value="${esc(sc.widthM)}"><span class="hint">${esc(sc.name || "Screen")} · ${Math.round(sc.width)} × ${Math.round(sc.height)} px. Click the screen in the 3D view to move it (M) or rotate it (R).</span></div>
+          ${sc.elements && sc.elements.length ? `<div class="chips"><button class="btn" type="button" data-screen-targets="Sphere">Its ${sc.elements.length} elements become sphere targets</button><button class="btn" type="button" data-screen-targets="Button">… or button targets</button></div>${sc.more ? `<span class="hint">${esc(sc.more)} more elements were left out.</span>` : ""}` : ""}
+          <div class="chips"><button class="chip" type="button" id="screen-remove">Remove the screen</button></div>` : ""}
+        <span class="muted" id="screen-msg" role="status"></span>
+        <p class="hint">The screen is a visual aid for placing targets. It is not part of the training configuration, so a vision policy does not see it yet.</p>
+      </div></details>`;
+  }
+  // The Figma token: for this tab only, or (opt-in) kept in this browser's storage. It never leaves for anywhere but Figma.
+  const figmaRemembered = () => { try { return !!localStorage.getItem("studio-figma-token"); } catch (e) { return false; } };
+  const figmaToken = () => { try { return localStorage.getItem("studio-figma-token") || sessionStorage.getItem("studio-figma-token") || ""; } catch (e) { return ""; } };
+  function keepFigmaToken(token, remember) {
+    try {
+      sessionStorage.setItem("studio-figma-token", token);
+      if (remember) localStorage.setItem("studio-figma-token", token); else localStorage.removeItem("studio-figma-token");
+    } catch (e) {}
+  }
+  function bindScreen(ws) {
+    const msg = ws.querySelector("#screen-msg");
+    const figma = ws.querySelector("#figma-go");
+    const remember = ws.querySelector("#figma-remember");
+    if (remember) remember.addEventListener("change", () => { if (!remember.checked) { try { localStorage.removeItem("studio-figma-token"); } catch (e) {} } });
+    if (figma) figma.addEventListener("click", async () => {
+      const url = ws.querySelector("#figma-url").value.trim(), token = ws.querySelector("#figma-token").value.trim();
+      S.figma = { url };
+      if (!url || !token) { msg.textContent = "Paste the frame link and a personal access token first."; return; }
+      keepFigmaToken(token, ws.querySelector("#figma-remember").checked);
+      msg.textContent = "Asking Figma for the frame…";
+      try {
+        // The page asks Figma itself; if the browser cannot (blocked request), a connected backend does.
+        let f;
+        try { f = await (await import("./static/figma.js")).fetchFrame(url, token); }
+        catch (e) { if (!S.backend || !/not reachable|could not be downloaded/.test(e.message)) throw e; f = await api("/api/figma", { method: "POST", body: { url, token } }); }
+        placeScreen({ name: f.name, image: f.image, width: f.width, height: f.height, elements: f.elements, more: f.more });
+      } catch (e) { msg.textContent = e.message; }
+    });
+    ws.querySelector("#screen-file").addEventListener("change", (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => placeScreen({ name: file.name, image: reader.result, width: img.naturalWidth, height: img.naturalHeight, elements: [] });
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+    const width = ws.querySelector("#screen-width");
+    if (width) width.addEventListener("change", () => {
+      S.screen.widthM = Math.max(0.05, Math.min(2, parseFloat(width.value) || S.screen.widthM));
+      syncScene();
+      followScreen();
+      render();
+    });
+    ws.querySelectorAll("[data-screen-targets]").forEach((b) => b.addEventListener("click", () => screenTargets(b.dataset.screenTargets)));
+    const rm = ws.querySelector("#screen-remove");
+    if (rm) rm.addEventListener("click", removeScreen);
+  }
+  function placeScreen(sc) {
+    // About 0.35 mm per pixel (a desktop monitor), in front of the user and slightly towards the body's midline.
+    const widthM = Math.round(Math.min(1.2, Math.max(0.08, sc.width * 0.00035)) * 100) / 100;
+    S.screen = { ...sc, widthM, pos: [0.45, 0.15, -0.05], quat: [0, 0, 0, 1] };
+    S.sel = null;
+    render();
+  }
+  function removeScreen() {
+    S.screen = null;
+    S.targets.forEach((t) => delete t.screenEl);
+    S.sel = null;
+    render();
+  }
+  const BUTTON_ON_SCREEN_M = 0.004;  // thickness of a button made from a screen element
+  let quatToEuler = null;            // from scene.js, once it is loaded
+  // A button made from a screen element: the element's size, flat on the screen, facing as the screen does.
+  function screenButton(el) {
+    const { pos, w, h, quat } = SC.screenElement(el, BUTTON_ON_SCREEN_M / 2);
+    const mm = (v) => Math.round(Math.max(0.005, v) * 1000) / 1000;
+    return { x: [pos[0], pos[0]], y: [pos[1], pos[1]], z: [pos[2], pos[2]], bw: mm(w), bh: mm(h), bt: BUTTON_ON_SCREEN_M, quat };
+  }
+  function screenTargets(type) {
+    if (!SC || !SC.screen) return;
+    S.targets = S.screen.elements.map((el, k) => {
+      const { pos, half } = SC.screenElement(el);
+      const r = Math.round(Math.min(0.2, Math.max(0.005, half)) * 1000) / 1000;
+      const base = { type, x: [pos[0], pos[0]], y: [pos[1], pos[1]], z: [pos[2], pos[2]], size: [r, r], dwell: 0.25, force: 1, angle: 90, color: COLORS[k % COLORS.length], screenEl: k };
+      return type === "Button" ? { ...base, ...screenButton(el) } : base;
+    });
+    S.sel = null;
+    render();
+  }
+  // Targets made from screen elements stay on the screen when it moves.
+  function followScreen() {
+    if (!SC || !SC.screen || !S.screen) return;
+    S.targets.forEach((t) => {
+      const el = t.screenEl != null && S.screen.elements[t.screenEl];
+      if (!el) return;
+      if (t.type === "Button") { const keep = t.turned ? { quat: t.quat } : {}; Object.assign(t, screenButton(el), keep); return; }
+      const { pos } = SC.screenElement(el);
+      t.x = [pos[0], pos[0]]; t.y = [pos[1], pos[1]]; t.z = [pos[2], pos[2]];
+    });
+    SC.moveTargets();
+    sceneKeys.targets = JSON.stringify(S.targets);
+    S.targets.forEach((t, i) => { if (t.screenEl != null) syncTargetInputs(i); });
+  }
+
+  /* ---------------------------------------------------------------- 3D scene */
+  let SC = null;
+  let sceneSyncVersion = 0;
+  const sceneKeys = {};
+  const sceneBase = () => (S.backend ? S.backend + "/" : "");
+  const LIVE_STEPS = [5, 6];
+  const liveWanted = () => !!(S.viewer && S.viewer.ready && S.viewer.kind === "stream" && LIVE_STEPS.includes(S.step));
+  function initScene() {
+    if (SC || !window.StudioScene) return;
+    try { SC = new window.StudioScene($("stage")); } catch (e) {
+      $("stage-msg").textContent = "The 3D view needs WebGL, which this browser does not offer here. Everything else works; edit targets with the numbers.";
+      return;
+    }
+    $("stage-msg").remove();
+    window.studioScene = SC;  // for the browser console and UI tests
+    SC.setReachVisible(S.showReach);
+    SC.setMusclesVisible(S.showMuscles);
+    SC.setSkinVisible(S.showSkin);
+    SC.addEventListener("model", () => renderSceneBar());  // the Skin toggle depends on the model
+    SC.addEventListener("select", (e) => selectTarget(e.detail.i, true));
+    SC.addEventListener("change", (e) => {
+      delete S.targets[e.detail.i].screenEl;  // moved by hand: no longer pinned to the screen
+      sceneKeys.targets = JSON.stringify(S.targets);
+      syncTargetInputs(e.detail.i);
+    });
+    SC.addEventListener("rotate", (e) => {  // a button turned by hand keeps that orientation when the screen moves
+      S.targets[e.detail.i].turned = true;
+      sceneKeys.targets = JSON.stringify(S.targets);
+      saveDraft();
+    });
+    SC.addEventListener("add", (e) => {
+      const p = e.detail.pos, last = S.targets[S.targets.length - 1];
+      const t = { ...structuredClone(last), color: COLORS[S.targets.length % COLORS.length], x: [p[0], p[0]], y: [p[1], p[1]], z: [p[2], p[2]] };
+      delete t.screenEl;
+      S.targets.push(t);
+      S.sel = S.targets.length - 1;
+      render();
+      showTarget(S.sel);
+    });
+    SC.addEventListener("screen-change", (e) => {
+      Object.assign(S.screen, e.detail);
+      sceneKeys.screen = screenKey();
+      followScreen();
+      saveDraft();
+    });
+    syncScene();
+    renderSceneBar();
+  }
+  // Loaded as a module from the main script, so a host that blocks it shows why instead of hanging.
+  import("./static/scene.js").then((m) => { window.StudioScene = m.StudioScene; quatToEuler = m.quatToEuler; initScene(); }).catch((e) => {
+    const msg = $("stage-msg");
+    if (msg) msg.textContent = `The 3D view could not load (${e.message}). Everything else works; edit targets with the numbers.`;
+  });
+  const screenKey = () => (S.screen ? JSON.stringify([S.screen.width, S.screen.height, S.screen.widthM, S.screen.pos, S.screen.quat]) : "");
+  // The scene centres itself in the gap between the step panel and the summary (wide layouts only).
+  function sceneFocus() {
+    if (!SC) return;
+    const stage = $("stage").getBoundingClientRect();
+    const wide = getComputedStyle($("workspace").parentElement).position === "absolute";
+    placeMuscleCard(wide);
+    if (!wide) { SC.setFocus(null); return; }
+    const left = (S.stepOpen ? $("workspace") : $("stepper")).getBoundingClientRect().right - stage.left;
+    const sum = $("summary").getBoundingClientRect();
+    const right = (sum.width ? sum.left : stage.right) - stage.left;
+    const span = right - left > 200 ? [left, right] : null;
+    SC.setFocus(span);
+    // The scene bar sits in the same gap, so it never slides under a panel.
+    const bar = $("scene-bar");
+    bar.style.left = span ? `${(span[0] + span[1]) / 2}px` : "";
+    bar.style.maxWidth = span ? `${span[1] - span[0] - 16}px` : "";
+  }
+  // The muscle card: top of the right column on wide screens, a corner of the 3D view on narrow ones.
+  function placeMuscleCard(wide) {
+    const card = $("mcard");
+    if (wide && card.parentElement !== $("summary")) $("summary").prepend(card);
+    else if (!wide && card.parentElement !== $("studio")) $("scene-bar").after(card);
+  }
+  window.addEventListener("resize", sceneFocus);
+  function setStepOpen(open) {
+    S.stepOpen = open;
+    try { localStorage.setItem("studio-step-open", open ? "1" : "0"); } catch (e) {}
+    applyPanels();
+  }
+  function applyPanels() {
+    $("workspace").parentElement.classList.toggle("step-closed", !S.stepOpen);
+    sceneFocus();
+  }
+  function syncScene() {
+    if (!SC) return;
+    applyPanels();
+    $("stage").classList.toggle("dim", [2, 3, 4].includes(S.step));
+    if (liveWanted() && !S.liveSocket) connectLive(S.viewer.key);
+    if (!liveWanted() && S.liveSocket) closeLive();
+    if (S.sim && !simWanted()) stopSim();
+    const version = ++sceneSyncVersion;
+    const live = (liveWanted() && S.live) || (simWanted() && S.sim.hello) || (replayWanted() && S.replay.hello) || null;
+    const model = live && live.model ? live.model : S.bm.bm_model;
+    if (replayWanted() && S.replay.hello && !S.replayTimer) S.replayTimer = setInterval(tickReplay, 1000 * S.replay.hello.ctrl_dt);
+    SC.loadModel(model, sceneBase()).then((loaded) => {
+      if (!loaded || version !== sceneSyncVersion) return;
+      S.sceneError = null;
+      if (live && (sceneKeys.live !== live || sceneKeys.liveModel !== SC.sceneInfo)) {
+        SC.setLive(live);
+        sceneKeys.live = live;
+        sceneKeys.liveModel = SC.sceneInfo;
+      }
+    }).catch((e) => { if (version === sceneSyncVersion) { S.sceneError = e.message; renderSceneBar(); } });
+    if (live) return;
+    if (sceneKeys.live) { SC.setLive(null); sceneKeys.live = null; }
+    if (S.mus) { S.mus = null; renderMuscleCard(); }
+    SC.setEditable(S.step === 1);
+    const tk = JSON.stringify(S.targets);
+    if (tk !== sceneKeys.targets) { sceneKeys.targets = tk; SC.setTargets(S.targets, S.sel); }
+    if (screenKey() !== sceneKeys.screen || S.screen?.image !== sceneKeys.screenImage) {
+      sceneKeys.screen = screenKey(); sceneKeys.screenImage = S.screen?.image; SC.setScreen(S.screen);
+    }
+  }
+  function renderSceneBar() {
+    const bar = $("scene-bar");
+    if (!SC) { bar.hidden = true; return; }
+    bar.hidden = false;
+    const v = S.viewer;
+    const views = [["perspective", "Default"], ["top", "Top"], ["side", "Side"], ["user", "User View"]];
+    let html = `<span class="seg" role="group" aria-label="Camera">${views.map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${S.view === k}">${l}</button>`).join("")}</span>`;
+    html += `<span class="toggles"><button class="chip tog" type="button" data-reach aria-pressed="${S.showReach}" title="The reach envelope used by out-of-reach rejection">Reach envelope</button>`;
+    html += `<button class="chip tog" type="button" data-muscles aria-pressed="${S.showMuscles}" title="Show or hide the muscles and tendons">Muscles</button>`;
+    if (SC.hasSkin) html += `<button class="chip tog" type="button" data-skin aria-pressed="${S.showSkin}" title="Show or hide the skin (the body volumes around the bones)">Skin</button>`;
+    html += `</span>`;
+    if (S.step === 1 && S.sel != null) {
+      const button = typeof S.sel === "number" && S.targets[S.sel] && S.targets[S.sel].type === "Button";
+      const key = (k) => (touch ? "" : ` (${k})`);
+      const modes = S.sel === "screen" ? [["translate", "Move" + key("M")], ["rotate", "Rotate" + key("R")]] : [["translate", "Move" + key("M")], ["scale", "Resize" + key("S")], ...(button ? [["rotate", "Rotate" + key("R")]] : [])];
+      html += `<span class="sep"></span><span class="seg" role="group" aria-label="Edit mode">` + modes.map(([k, l]) => `<button type="button" data-mode="${k}" aria-pressed="${S.mode === k}">${l}</button>`).join("") + `</span>`;
+    }
+    // What the 3D view shows, always named first: the static rest posture, a policy on my targets, an
+    // evaluation of an example task, or a backend's live view; with the controls that fit it.
+    const badge = (kind, label) => `<span class="mode-badge ${kind}">${label}</span>`;
+    const pill = (cls, text) => `<span class="live-pill ${cls}" role="status">${esc(text)}</span>`;
+    const pause = S.paused ? `<button class="chip" type="button" data-play>&#9654; Play</button>` : `<button class="chip" type="button" data-pause>&#10074;&#10074; Pause</button>`;
+    let status = "", ctrl = "";  // two rows: what plays, then its controls
+    if (v && LIVE_STEPS.includes(S.step)) {
+      const secs = v.t0 ? Math.round((Date.now() - v.t0) / 1000) : 0;
+      const state = v.error ? ["err", `Live view failed: ${v.error}`]
+        : v.busy ? ["", `Starting: building the task and loading the policy… ${secs} s`]
+        : v.kind === "viser" ? ["", "Playing in the viser tab"]
+        : S.live ? ["on", `${v.name || v.label} · ${S.liveStatus}`] : ["", "Connecting to the live view…"];
+      status += badge("live", "Live") + pill(state[0], state[1]);
+      ctrl += v.kind === "viser" ? `<button class="chip" type="button" data-live="back">Back to this view</button>` : `<button class="chip" type="button" data-live="stop">&#9632; Stop</button>`;
+    } else if (simWanted()) {
+      const sim = S.sim, ok = sim.hello && !sim.error;
+      const text = sim.error ? "The simulation could not start: " + sim.error : !sim.hello ? "Loading MuJoCo and the policy…"
+        : S.step === 1 ? `${sim.title} policy on my targets · ${sim.wins}/${sim.episodes} solved` : `${sim.title} example · ${sim.wins}/${sim.episodes} solved`;
+      status += badge(S.step === 1 ? "policy" : "eval", S.step === 1 ? "Example policy" : "Evaluation") + pill(sim.error ? "err" : ok && !S.paused ? "on" : "", text + (S.paused ? " · paused" : ""));
+      if (ok) ctrl += pause + `<button class="chip" type="button" data-sim-new title="Start a new episode">&#8635; New episode</button>`;
+      if (S.step === 1) ctrl += `<button class="chip" type="button" data-sim-stop title="Stop the policy and edit the targets">&#9632; Stop · edit targets</button>`;
+    } else if (replayWanted()) {
+      const r = S.replay;
+      status += badge("eval", "Evaluation") + pill(r.error ? "err" : r.hello && !S.paused ? "on" : "", r.error ? "The recorded rollout could not load: " + r.error : r.hello ? `${r.title} example · recorded rollout` + (S.paused ? " · paused" : "") : "Loading the recorded rollout…");
+      if (r.hello) ctrl += pause;
+    } else if (S.step <= 4 || (S.step === 5 && !S.backend)) {
+      status += badge("setup", "Task setup") + pill("", S.step === 1 ? "Static rest posture · drag the targets to place them" : "Static rest posture");
+      if (S.step === 1 && simExample()) ctrl += `<button class="chip primary-chip" type="button" data-sim-play title="Runs the ${esc(simExample().title)} example policy in my browser on the target ranges set here">&#9654; Play example policy</button>`;
+    }
+    // The glTF export is switched off for now (EXPORT_3D); its code stays, to be re-enabled later.
+    if (EXPORT_3D) html += `<button class="chip" type="button" data-export="glb" title="Download the 3D scene (arm, targets, screen) as a glTF file, for Blender, Unity, Figma plug-ins and web pages">Export 3D (glTF)</button>`;
+    if (S.backend) html += `<button class="chip" type="button" data-export="mjcf" title="The task as a MuJoCo model with its meshes (zip), e.g. for MuJoCo's Unity plug-in">MuJoCo</button>`;
+    if (status) html += `<span class="act"><span class="act-row">${status}</span>${ctrl ? `<span class="act-row">${ctrl}</span>` : ""}</span>`;
+    if (S.sceneError) html += `<span class="live-pill err">${esc(S.sceneError)}</span>`;
+    bar.innerHTML = html;
+    bar.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => { S.view = b.dataset.view; SC.setView(S.view); renderSceneBar(); }));
+    bar.querySelector("[data-reach]").addEventListener("click", () => { S.showReach = !S.showReach; SC.setReachVisible(S.showReach); renderSceneBar(); });
+    bar.querySelector("[data-muscles]").addEventListener("click", () => { S.showMuscles = !S.showMuscles; SC.setMusclesVisible(S.showMuscles); renderSceneBar(); });
+    bar.querySelector("[data-skin]")?.addEventListener("click", () => { S.showSkin = !S.showSkin; SC.setSkinVisible(S.showSkin); renderSceneBar(); });
+    bar.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+    bar.querySelectorAll("[data-live]").forEach((b) => b.addEventListener("click", () => {
+      if (b.dataset.live === "stop") { S.viewer = null; S.viewerClosed = true; closeLive(); api("/api/viewer", { method: "DELETE" }).catch(() => {}); }
+      else { S.viewer = null; S.viewerClosed = false; }
+      render();
+    }));
+    bar.querySelectorAll("[data-sim-play]").forEach((b) => b.addEventListener("click", () => { startSim(simExample(), 1); render(); }));
+    bar.querySelectorAll("[data-sim-stop]").forEach((b) => b.addEventListener("click", () => { stopSim(); render(); }));
+    bar.querySelectorAll("[data-pause]").forEach((b) => b.addEventListener("click", () => { S.paused = true; renderSceneBar(); }));
+    bar.querySelectorAll("[data-play]").forEach((b) => b.addEventListener("click", () => { S.paused = false; renderSceneBar(); }));
+    bar.querySelectorAll("[data-sim-new]").forEach((b) => b.addEventListener("click", () => { if (S.sim && S.sim.engine) { S.sim.wait = 0; simReset(S.sim); S.paused = false; renderSceneBar(); } }));
+    bar.querySelectorAll("[data-export]").forEach((b) => b.addEventListener("click", () => exportScene(b.dataset.export, b)));
+  }
+  function setMode(mode) {
+    S.mode = mode;
+    if (SC) SC.setMode(mode);
+    renderSceneBar();
+  }
+  function download(blob, name) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  }
+  async function exportScene(kind, button) {
+    const name = (S.preset || "task").replace(/[^A-Za-z0-9_-]+/g, "_");
+    const label = button.textContent;
+    button.textContent = "Exporting…";
+    try {
+      if (kind === "glb") download(await SC.exportGLB(), `${name}.glb`);
+      else {
+        const r = await fetch(S.backend + "/api/export/mjcf", { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ preset: toPreset(), name }) });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "HTTP " + r.status);
+        download(await r.blob(), `${name}.zip`);
+      }
+      button.textContent = label;
+    } catch (e) { button.textContent = label; S.sceneError = "Export failed: " + e.message; renderSceneBar(); }
+  }
+
+  /* ---------------------------------------------------------------- live view (stream job of the backend) */
+  // One live job at a time. The backend keeps the same job when the same view is asked for again,
+  // and the scene stays mounted while steps re-render, so polling never reconnects it.
+  async function openViewer(body, step, label, name) {
+    body = { kind: "stream", ...body };
+    const key = JSON.stringify(body);
+    if (S.viewer && S.viewer.key === key && !S.viewer.error) { S.viewer.step = step; syncScene(); renderSceneBar(); return; }
+    closeLive();
+    S.viewer = { key, step, label, name, kind: body.kind, busy: true, t0: Date.now() };
+    renderSceneBar();
+    const current = () => S.viewer && S.viewer.key === key;
+    try {
+      let job = await api("/api/viewer", { method: "POST", body });
+      while (!job.result) {
+        if (job.status === "failed") throw new Error(job.log.split("\n").slice(-3).join(" ") || "the live view did not start");
+        if (!current()) return;  // replaced by another view meanwhile
+        await sleep(1000);
+        renderSceneBar();
+        job = await api("/api/jobs/" + job.id);
+      }
+      if (!current()) return;
+      S.viewer = { ...S.viewer, busy: false, ready: true, job: job.id };
+    } catch (e) { if (current()) S.viewer = { ...S.viewer, busy: false, error: e.message }; }
+    syncScene();
+    renderSceneBar();
+  }
+  function connectLive(key, tries = 0) {
+    const base = (S.backend || location.origin).replace(/^http/, "ws");
+    const ws = new WebSocket(`${base}/viewer/stream${S.token ? "?token=" + encodeURIComponent(S.token) : ""}`);
+    ws.binaryType = "arraybuffer";
+    S.liveSocket = ws;
+    ws.onmessage = (ev) => {
+      if (typeof ev.data === "string") {
+        const m = JSON.parse(ev.data);
+        if (m.type === "hello") { S.live = m; S.liveStatus = m.status; syncScene(); }
+        else if (m.type === "status") S.liveStatus = m.status;
+        renderSceneBar();
+      } else if (SC && sceneKeys.live && sceneKeys.live === S.live) {
+        showFrame(new Float32Array(ev.data), S.live, true);
+      }
+    };
+    ws.onclose = () => {
+      if (S.liveSocket !== ws) return;  // closed on purpose
+      S.liveSocket = null;
+      S.live = null;
+      syncScene();
+      renderSceneBar();
+      if (tries < 5) setTimeout(() => { if (S.viewer && S.viewer.key === key && liveWanted() && !S.liveSocket) connectLive(key, tries + 1); }, 2000);
+    };
+  }
+  /* ---------------------------------------------------------------- muscle activity of a playing policy */
+  // Every live frame ends with the muscles' activations (page simulation, backend live view, and
+  // recordings made since): the 3D muscles take their colour, the card shows the busiest ones live
+  // and the muscle groups' means per episode. Feeds without episode ends are cut into windows.
+  let MM = null, JM = null;  // static/muscles.js and static/joints.js, once loaded
+  import("./static/muscles.js").then((m) => { MM = m; }).catch(() => {});
+  import("./static/joints.js").then((m) => { JM = m; }).catch(() => {});
+  const MUSCLE_WINDOW_S = 4;
+  // Minimised at first on narrow screens, where it would cover much of the scene.
+  const mcardDefault = { view: "live", kind: "muscles", open: !matchMedia("(max-width: 1100px)").matches };
+  try { S.mcard = { ...mcardDefault, ...JSON.parse(localStorage.getItem("studio-mcard") || "{}") }; } catch (e) { S.mcard = mcardDefault; }
+  function showFrame(f, hello, windowed) {
+    SC.applyFrame(f);
+    const names = (hello && hello.muscles) || [], joints = (hello && hello.joints) || [];
+    if (!MM || !JM || (!names.length && !joints.length)) return;
+    const at = 7 * hello.bodies.length + 3 * hello.targets.length;
+    if (f.length < at + names.length + joints.length) return;
+    if (!S.mus || S.mus.hello !== hello) {
+      S.mus = { hello, meter: names.length ? new MM.MuscleMeter(names) : null, jmeter: joints.length ? new JM.JointMeter(joints) : null, windowed, n: 0 };
+      renderMuscleCard(true);
+    }
+    if (S.mus.meter) {
+      const act = f.subarray(at, at + names.length);
+      S.mus.meter.push(act);
+      SC.setMuscleActivity(act, names);
+    }
+    if (S.mus.jmeter) S.mus.jmeter.push(f.subarray(at + names.length, at + names.length + joints.length));
+    const ends = windowed && ++S.mus.n % Math.max(1, Math.round(MUSCLE_WINDOW_S / hello.ctrl_dt)) === 0;
+    if (ends) endMeterEpisode();
+    renderMuscleCard(ends);
+  }
+  // Close an episode (or a window of a feed without episodes) on both meters.
+  function endMeterEpisode(fatigue = null) {
+    if (!S.mus) return;
+    if (S.mus.meter) S.mus.meter.endEpisode(fatigue);
+    if (S.mus.jmeter) S.mus.jmeter.endEpisode();
+  }
+  // The card: muscles (live or per episode) or joints (angle now over the range per episode). Built when a feed starts or the view changes;
+  // afterwards only the live rows are redrawn every frame, and the table when an episode (or window) ends.
+  function renderMuscleCard(full = false) {
+    const card = $("mcard");
+    if (!S.mus || !MM || !JM) { card.hidden = true; card.innerHTML = ""; delete card.dataset.head; return; }
+    const kinds = [["muscles", "Muscles", S.mus.meter], ["joints", "Joints", S.mus.jmeter]].filter((k) => k[2]);
+    const kind = kinds.some((k) => k[0] === S.mcard.kind) ? S.mcard.kind : kinds[0][0];
+    const unit = S.mus.windowed ? `${MUSCLE_WINDOW_S} s` : "episode";
+    const n = matchMedia("(max-width: 1100px)").matches ? 5 : 8;
+    // The header (muscles / joints arrows, view, fold) is rebuilt only when it changes, so its
+    // buttons keep focus across episode ends; the table below is refreshed then.
+    const headKey = [S.mus.hello && S.mus.hello.bodies.length, kinds.map((k) => k[0]).join(), kind, S.mcard.view, S.mcard.open, unit].join("|");
+    if (card.hidden || !card.firstChild || card.dataset.head !== headKey) {
+      card.dataset.head = headKey;
+      card.hidden = false;
+      card.classList.toggle("closed", !S.mcard.open);
+      const at = kinds.findIndex((k) => k[0] === kind), other = (d) => kinds[(at + d + kinds.length) % kinds.length][1];
+      const title = kinds.length > 1
+        ? `<span class="mcard-kinds"><button class="kind-arrow" type="button" data-mkind="-1" aria-label="Show ${other(-1)}" title="${other(-1)}">&#8249;</button><b>${kinds[at][1]}</b><button class="kind-arrow" type="button" data-mkind="1" aria-label="Show ${other(1)}" title="${other(1)}">&#8250;</button></span>`
+        : `<b>${kinds[0][1]}</b>`;
+      // joints have one view: the angle now over the range per episode
+      const views = kind === "joints" ? "" : `<span class="seg" role="group" aria-label="View"><button type="button" data-mview="live" aria-pressed="${S.mcard.view === "live"}">Live</button><button type="button" data-mview="groups" aria-pressed="${S.mcard.view === "groups"}">Per ${unit === "episode" ? "episode" : unit}</button></span>`;
+      card.innerHTML = `<div class="mcard-head">${title}${views}<button class="min-btn fold-btn" type="button" data-mcard-min aria-expanded="${S.mcard.open}" aria-label="${S.mcard.open ? "Fold" : "Unfold"} the card" title="${S.mcard.open ? "Fold" : "Unfold"}">${foldIcon(S.mcard.open)}</button></div><div class="mcard-body"></div>`;
+      full = true;
+      sceneFocus();
+    }
+    const live = kind === "joints" || S.mcard.view === "live";
+    if (full && !live) card.querySelector(".mcard-body").innerHTML = MM.groupsHtml(S.mus.meter, unit);
+    if (live && S.mcard.open) {
+      card.querySelector(".mcard-body").innerHTML = kind === "joints"
+        ? JM.jointBarsHtml(S.mus.jmeter, n) + JM.jointNote(S.mus.jmeter, unit)
+        : MM.barsHtml(S.mus.meter, n) + `<span class="mcard-note">Bar: activation now · <span class="tick-key"></span> mean so far · busiest first</span>`;
+    }
+  }
+  $("mcard").addEventListener("click", (ev) => {
+    const v = ev.target.closest("[data-mview]"), step = ev.target.closest("[data-mkind]");
+    if (v) S.mcard.view = v.dataset.mview;
+    else if (ev.target.closest("[data-mcard-min]")) S.mcard.open = !S.mcard.open;
+    else if (step) {  // previous / next of muscles, joints
+      const kinds = ["muscles", "joints"].filter((k) => (k === "muscles" ? S.mus?.meter : S.mus?.jmeter));
+      const at = Math.max(0, kinds.indexOf(S.mcard.kind));
+      S.mcard.kind = kinds[(at + +step.dataset.mkind + kinds.length) % kinds.length];
+    } else return;
+    try { localStorage.setItem("studio-mcard", JSON.stringify(S.mcard)); } catch (e) {}
+    renderMuscleCard(true);
+  });
+
+  /* ---------------------------------------------------------------- example policies without a backend */
+  // The hosted page ships each example's stored evaluation and a recorded live feed (same frames as
+  // the live view), which the 3D scene replays in a loop.
+  const replayWanted = () => !S.backend && S.step === 6 && !!S.replay && !simWanted();
+
+  /* ---------------------------------------------------------------- example policies simulated in the page */
+  // MuJoCo (WebAssembly) and the policy run here: static/sim.js, tested against native MuJoCo.
+  // Evaluate plays the example's own task; the Task step plays it on the target ranges set there.
+  const simWanted = () => !!S.sim && S.step === S.sim.step && (S.sim.step !== 1 || simExample()?.name === S.sim.name);
+  // The example whose policy fits the setup in the editor: same body, one sphere target, no fatigue.
+  // (Buttons sit at fixed places in their examples, so only sphere tasks are offered for free exploration.)
+  const simExample = () => (liveTargets().length === 1 && liveTargets()[0].type === "Sphere" && S.examples.find((e) => e.sim && e.replay.hello.model === S.bm.bm_model && e.summary && e.summary.targets === 1 && e.sim_kind === "sphere" && !!e.summary.fatigue === !!S.bm.fatigue_enabled)) || null;
+  function stopSim() {
+    if (!S.sim) return;
+    clearInterval(S.sim.timer);
+    if (S.sim.engine) S.sim.engine.dispose();
+    S.sim = null;
+  }
+  async function startSim(ex, step) {
+    if (S.sim && S.sim.name === ex.name && S.sim.step === step) return;
+    stopSim();
+    S.paused = false;
+    const mine = (S.sim = { name: ex.name, title: ex.title, step, hello: null, wins: 0, episodes: 0, wait: 0, reached: ex.replay.hello.targets.map(() => 0) });
+    try {
+      const { TaskSim } = await import("./static/sim.js");
+      const engine = await TaskSim.load(`examples/${ex.name}`);
+      if (S.sim !== mine || !simWanted()) { engine.dispose(); if (S.sim === mine) stopSim(); return; }
+      mine.engine = engine;
+      mine.frame = new Float32Array(engine.frameLength);
+      mine.hello = { model: ex.replay.hello.model, bodies: engine.info.bodies.map((n) => n.split("/").pop()), targets: ex.replay.hello.targets.map((t) => ({ ...t })), muscles: engine.muscleNames, joints: engine.jointInfo, ctrl_dt: engine.task.ctrl_dt };
+      simReset(mine);
+      mine.timer = setInterval(() => simTick(mine), 1000 * engine.task.ctrl_dt);
+    } catch (e) {
+      mine.error = e.message;
+      // Evaluate falls back to the example's recorded rollout
+      if (S.sim === mine && step === 6) { S.evalMode = "replay"; stopSim(); render(); return; }
+    }
+    if (S.sim === mine) { syncScene(); renderSceneBar(); }
+  }
+  // Evaluate: targets as the example was trained. Task step: the ranges set in the editor (shoulder frame).
+  function simReset(sim) {
+    const { engine } = sim, t = liveTargets()[0], uni = (r) => r[0] + Math.random() * (r[1] - r[0]);
+    if (sim.step === 1) engine.reset({ positions: [[uni(t.x), uni(t.y), uni(t.z)].map((v, k) => v + engine.task.origin[k])], sizes: [[uni(t.size), uni(t.size), uni(t.size)]] });
+    else engine.reset();
+    sim.radii = engine.targets.map((g) => engine.model.geom_size[3 * g.geomId]);
+  }
+  // "3 of 3 episodes solved in this session", with the muscles' mean fatigue for tasks that model it
+  const simStats = (sim) => `${sim.wins} of ${sim.episodes} episodes solved in this session` + (sim.engine && sim.engine.fatigue ? ` · mean fatigue ${sim.engine.meanFatigue.toFixed(2)} at the end of the last one` : "");
+  function simTick(sim) {
+    if (S.sim !== sim || !simWanted() || !SC || sceneKeys.live !== sim.hello || S.paused) return;
+    if (sim.wait > 0) { if (--sim.wait === 0) simReset(sim); else return; }
+    const done = sim.engine.step();
+    sim.radii.forEach((r, k) => { if (sim.hello.targets[k].shape !== "box") SC.setLiveTargetRadius(k, r); });
+    showFrame(sim.engine.frame(sim.frame), sim.hello, false);
+    if (done || sim.engine.timedOut) {
+      if (S.mus && S.mus.hello === sim.hello) { endMeterEpisode(sim.engine.muscleFatigue); renderMuscleCard(true); }
+      sim.episodes++;
+      sim.wins += done ? 1 : 0;
+      for (let k = 0; k < Math.min(sim.engine.reached, sim.reached.length); k++) sim.reached[k]++;
+      sim.wait = 8;  // hold the final pose for a moment
+      renderSceneBar();
+      const stat = $("sim-stats");
+      if (stat) stat.textContent = simStats(sim);
+      const box = $("tgt-box"), ex = S.examples.find((e) => e.name === sim.name);
+      if (box && ex && sim.step === 6) box.outerHTML = exampleTargets(ex);
+    }
+  }
+  fetch("examples/index.json").then((r) => (r.ok ? r.json() : [])).then((list) => { S.examples = list; if (S.step === 6) render(); }).catch(() => {});
+  async function loadReplay(ex) {
+    if (S.replay && S.replay.name === ex.name) return;
+    clearInterval(S.replayTimer);
+    S.replayTimer = null;
+    const mine = (S.replay = { name: ex.name, title: ex.title, hello: null });
+    try {
+      const r = await fetch(`examples/${ex.name}/${ex.replay.file}`);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const frames = new Float32Array(await r.arrayBuffer());
+      Object.assign(mine, { frames, floats: ex.replay.floats, n: ex.replay.frames, i: 0, hello: { ...ex.replay.hello } });
+    } catch (e) { mine.error = e.message; }
+    if (S.replay === mine) { syncScene(); renderSceneBar(); }
+  }
+  function tickReplay() {
+    const r = S.replay;
+    if (!replayWanted() || !r.hello) { clearInterval(S.replayTimer); S.replayTimer = null; return; }
+    if (SC && sceneKeys.live === r.hello && !S.paused) { showFrame(r.frames.subarray(r.i * r.floats, (r.i + 1) * r.floats), r.hello, true); r.i = (r.i + 1) % r.n; }
+  }
+  async function openExampleTask(name) {
+    const preset = S.backend ? await api("/api/presets/" + encodeURIComponent(name)) : await (await fetch(`examples/${name}/preset.json`)).json();
+    fromPreset(preset);
+    S.preset = name;
+    go(1);
+  }
+  function closeLive() {
+    const ws = S.liveSocket;
+    S.liveSocket = null;
+    S.live = null;
+    if (ws) ws.close();
+  }
+  const clampM = (v) => Math.round(Math.max(-1, Math.min(1, v)) * 200) / 200;  // 5 mm steps, within +-1 m
+  function syncTargetInputs(i) {
+    const t = S.targets[i];
+    document.querySelectorAll(`[data-bind^="t.${i}."]`).forEach((el) => {
+      const key = el.dataset.bind.split(".")[2];
+      const v = el.dataset.sub != null ? t[key][+el.dataset.sub] : t[key];
+      if (v != null && document.activeElement !== el) el.value = v;
+    });
+    renderSummary();
+  }
+  // Scene shortcuts on the page, so they work whether or not the scene has focus,
+  // but never while typing in a field (except copy and paste of a marked row).
+  document.addEventListener("keydown", (ev) => {
+    if (S.step !== 1) return;
+    const mod = ev.ctrlKey || ev.metaKey;
+    const key = ev.key.toLowerCase();
+    const field = ev.target.closest && ev.target.closest("input, select, textarea, [contenteditable]");
+    const typed = field && field.selectionStart != null && field.selectionStart !== field.selectionEnd;  // text marked in a field: the browser's own copy
+    if (mod && S.row && S.targets[S.row.i] && (key === "c" || key === "v") && !typed && (!field || field.closest("[data-row]"))) {
+      if (key === "c") { copyRow(); ev.preventDefault(); return; }
+      if (S.clipKind === "row") { if (pasteRow()) ev.preventDefault(); return; }
+    }
+    if (field) return;
+    if (ev.key === "Escape" && S.row) clearRow();
+    if (!SC) return;
+    if ((ev.key === "Delete" || ev.key === "Backspace") && S.sel != null && !mod) { if (S.sel === "screen") removeScreen(); else removeTarget(S.sel); ev.preventDefault(); }
+    else if (mod && key === "c" && typeof S.sel === "number" && !String(getSelection())) {
+      copyTarget(S.sel);
+      renderTargetTools();
+      if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify(S.clip)).catch(() => {});  // also as JSON, for other tools; optional
+      ev.preventDefault();
+    }
+    // over the 3D view a copy is added under the pointer; elsewhere the settings go into the selected target
+    else if (mod && key === "v" && S.clip) { if (SC.hover || typeof S.sel !== "number") pasteTarget(SC.hover); else pasteInto(S.sel); ev.preventDefault(); }
+    else if (!mod && key === "m") setMode("translate");
+    else if (!mod && key === "s" && typeof S.sel === "number") setMode("scale");
+    else if (!mod && key === "r" && (S.sel === "screen" || (typeof S.sel === "number" && S.targets[S.sel].type === "Button"))) setMode("rotate");
+    else if (ev.key === "Escape" && S.sel != null) { selectTarget(null); }
+  });
+  function renderTargetTools() { document.querySelectorAll("[data-paste]").forEach((b) => { b.disabled = !S.clip; }); }
+  function pasteTarget(hover) {
+    const t = { ...structuredClone(S.clip), color: COLORS[S.targets.length % COLORS.length] };
+    const shift = (key, d) => { t[key] = t[key].map((a) => clampM(a + d)); };
+    const mid = (r) => (Math.min(...r) + Math.max(...r)) / 2;
+    if (hover) ["x", "y", "z"].forEach((k, j) => shift(k, hover[j] - mid(t[k])));  // centred under the pointer
+    else shift("y", 0.05);
+    S.clip = structuredClone(t);  // repeated pastes without a pointer keep stepping sideways
+    S.targets.push(t);
+    S.sel = S.targets.length - 1;
+    render();
+  }
+  function removeTarget(i) {
+    if (S.targets.length <= 1 || (!S.targets[i].disabled && liveTargets().length <= 1)) {  // the task needs at least one target that is on
+      const hint = document.getElementById("sketch-msg");
+      if (hint) { hint.textContent = "A task needs at least one target that is switched on, so this one cannot be removed."; setTimeout(() => { hint.textContent = ""; }, 3000); }
+      return;
+    }
+    S.targets.splice(i, 1);
+    S.sel = null;
+    S.row = null;
+    render();
+  }
+
+  /* ---------------------------------------------------------------- 3 sensing */
+  function renderSensing(ws) {
+    const group = (key, title, hint, disabled) => `<div class="field"><span class="lab">${title}</span><span class="hint">${hint}</span><div class="chips">${OBS[key].map(([k, l]) => `<button type="button" class="chip" data-obs="${k}" aria-pressed="${S.obs[k]}" ${disabled ? "disabled" : ""}><span class="mono">${k}</span> · ${l}</button>`).join("")}</div></div>`;
+    ws.append(h(`${head("What the agent senses", "The policy reacts only to what it observes. Body and task signals are enough for pointing.")}
+      ${group("body", "Body", "Proprioception: where the arm is and how it moves.")}
+      ${group("task", "Task", "Where the current target is and how far the task has progressed.")}
+      ${group("fatigue", "Fatigue", S.bm.fatigue_enabled ? "The state of every muscle's fatigue compartments." : "Turn on muscle fatigue in step 1 to use these.", !S.bm.fatigue_enabled)}
+      ${group("vision", "Vision", "Images from a head-mounted camera; uses a convolutional policy.")}`));
+    ws.querySelectorAll("[data-obs]").forEach((b) => b.addEventListener("click", () => { const k = b.dataset.obs; S.obs[k] = !S.obs[k]; b.setAttribute("aria-pressed", String(S.obs[k])); renderSummary(); }));
+  }
+
+  /* ---------------------------------------------------------------- 4 reward */
+  function renderReward(ws) {
+    ws.append(h(`${head("What the agent is rewarded for", "The weights set the trade-off it learns: distance drives learning, penalties shape how it moves.")}
+      <div style="display:grid; gap:14px">${REWARDS.map(([k, , min, max, step, note, studioOnly]) => `<div class="field"><div class="group-title"><label for="rw-${k}"><span class="mono">${k}</span>${studioOnly ? ' <span class="hint" title="Not adjustable in the Gradio UI">Studio only</span>' : ""}</label><span class="mono" id="rwv-${k}">${esc(S.reward[k])}</span></div>
+        <input id="rw-${k}" type="range" min="${min}" max="${max}" step="${step}" value="${esc(S.reward[k])}" data-bind="reward.${k}" data-live="rwv-${k}"><span class="hint">${note}</span></div>`).join("")}</div>`));
+    bindInputs(ws);
+  }
+
+  /* ---------------------------------------------------------------- 5 training */
+  function renderTraining(ws) {
+    ws.append(h(`${head("Training budget and compute", "Pointing usually learns within 10–50 M steps; the defaults are a good start.")}
+      <div class="cards" id="target-cards"></div>
+      <div class="grid2">
+        <div class="field"><label for="rl-steps">Total steps</label><input id="rl-steps" type="number" min="100000" step="1000000" value="${esc(S.rl.steps)}" data-bind="rl.steps"><span class="hint">Simulated control steps over all environments.</span></div>
+        <div class="field"><label for="rl-envs">Parallel environments</label><select id="rl-envs" data-bind="rl.envs">${[256, 512, 1024, 2048, 4096, 8192].map((n) => `<option ${n === S.rl.envs ? "selected" : ""}>${n}</option>`).join("")}</select><span class="hint">Simulated arms trained at once on the GPU.</span></div>
+      </div>
+      <details><summary>PPO settings</summary><div class="grid2" style="margin-top:12px">
+        <div class="field"><label for="rl-unroll">Unroll length</label><input id="rl-unroll" type="number" min="4" max="256" value="${esc(S.rl.unroll)}" data-bind="rl.unroll"><span class="hint">Steps per environment between updates.</span></div>
+        <div class="field"><label for="rl-mb">Minibatches</label><input id="rl-mb" type="number" min="1" max="64" value="${esc(S.rl.minibatches)}" data-bind="rl.minibatches"></div>
+        <div class="field"><label for="rl-ep">Epochs per update</label><input id="rl-ep" type="number" min="1" max="20" value="${esc(S.rl.epochs)}" data-bind="rl.epochs"></div>
+        <div class="field"><label for="rl-ck">Checkpoint every (iterations)</label><input id="rl-ck" type="number" min="1" value="${esc(S.rl.ckpt)}" data-bind="rl.ckpt"></div>
+        <div class="field"><label for="rl-seed">Target seed</label><input id="rl-seed" type="number" value="${esc(S.rl.seed)}" data-bind="rl.seed"></div>
+      </div></details>
+      ${wandbHtml()}
+      <div class="save-row"><div><b>Keep this setup</b><p class="muted">Task and learning settings as one JSON file, for <span class="mono">myo_train --config</span> or your own framework.</p></div>
+        <div class="chips"><button class="btn small primary" type="button" data-save-cfg>Save configuration</button><label class="btn small" for="import-cfg" style="cursor:pointer">Upload</label></div></div>`));
+    bindWandb(ws);
+    const cards = ws.querySelector("#target-cards");
+    if (MOBILE) cards.before(h(`<p class="demo-banner mobile-note">${MOBILE_NOTE}</p>`).firstElementChild);
+    for (const [name, t] of targetOrder()) {
+      const b = document.createElement("button");
+      b.className = "card"; b.type = "button";
+      b.setAttribute("aria-pressed", String(S.target === name));
+      b.disabled = !usable(name);
+      b.innerHTML = `${b.disabled ? '<span class="tag">needs a computer</span>' : ""}<b>${name}</b><span>${t.note}${MOBILE && !b.disabled ? " Set it up from a computer." : ""}</span>`;
+      b.addEventListener("click", () => { S.target = name; try { localStorage.setItem("studio-target", name); } catch (e) {} render(); });
+      cards.append(b);
+    }
+    bindInputs(ws);
+  }
+
+  /* ---------------------------------------------------------------- Weights & Biases */
+  // Runs started here can also log to W&B. The backend holds the login (a key sent once from the
+  // dialog, or the machine's own `wandb login`); the page keeps only the switch, project and entity.
+  try { S.wb = { enabled: false, project: "myointeract", entity: "", ...JSON.parse(localStorage.getItem("studio-wandb") || "{}") }; } catch (e) { S.wb = { enabled: false, project: "myointeract", entity: "" }; }
+  const saveWb = () => { try { localStorage.setItem("studio-wandb", JSON.stringify(S.wb)); } catch (e) {} };
+  const wandbOn = () => !!(S.backend && S.wandb && S.wandb.connected && S.wb.enabled);
+  const wandbEntity = () => (S.wandb && (S.wandb.teams || []).includes(S.wb.entity) ? S.wb.entity : S.wandb && S.wandb.entity);
+  const wandbTarget = () => `${wandbEntity()}/${S.wb.project}`;
+  async function loadWandb() {
+    S.wandb = null;
+    try { S.wandb = await api("/api/wandb"); } catch (e) { S.wandb = { error: e.message }; }
+    renderSummary();
+    if (S.step === 4 || S.step === 5) render();
+  }
+  function wandbHtml() {
+    const st = S.wandb, wb = S.wb;
+    let body;
+    if (!S.backend) body = `<span class="hint"><button class="link-btn" type="button" data-connect>Connect compute</button> first: the backend that trains also logs to W&amp;B.</span>`;
+    else if (!st) body = `<span class="hint">Checking the backend's W&amp;B login…</span>`;
+    else if (st.error) body = `<span class="err">${esc(st.error)}</span>`;
+    else if (!st.installed) body = `<span class="hint">wandb is not installed on the backend: <span class="mono">pip install wandb</span>.</span>`;
+    else if (!st.connected) body = `<span class="hint">Log the training curves and checkpoints to your W&amp;B account as well.</span><div class="chips"><button class="btn small" type="button" data-wb-connect>Connect W&amp;B</button></div>`;
+    else {
+      const ents = st.teams && st.teams.length ? st.teams : [st.entity];
+      body = `<label class="toggle-row"><input type="checkbox" id="wb-on" ${wb.enabled ? "checked" : ""}><span><b>Log runs to W&amp;B</b><span>As <b style="display:inline">${esc(st.user)}</b>${st.source === "studio" ? "" : ", the backend machine's own login"}. The curves here stay as they are.</span></span></label>
+        <div class="grid2"><div class="field"><label for="wb-project">Project</label><input type="text" id="wb-project" value="${esc(wb.project)}" spellcheck="false" maxlength="128"></div>
+        <div class="field"><label for="wb-entity">Entity</label><select id="wb-entity">${ents.map((e) => `<option ${e === wandbEntity() ? "selected" : ""}>${esc(e)}</option>`).join("")}</select></div></div>
+        <div class="chips">${st.source === "studio" ? `<button class="chip" type="button" data-wb-forget>Disconnect</button>` : `<button class="chip" type="button" data-wb-connect>Use another key</button>`}</div>`;
+    }
+    const state = st && st.connected ? (wb.enabled ? "on" : "off") : "optional";
+    return `<div class="wandb-box"><div class="wandb-head"><b><span class="wb-mark">W&amp;B</span>Weights &amp; Biases</b><span class="muted" style="font-size:0.8rem">${state}</span></div>${body}</div>`;
+  }
+  function bindWandb(ws) {
+    ws.querySelectorAll("[data-wb-connect]").forEach((b) => b.addEventListener("click", openWandb));
+    ws.querySelector("[data-wb-forget]")?.addEventListener("click", async () => { try { S.wandb = await api("/api/wandb", { method: "DELETE" }); } catch (e) { S.wandb = { error: e.message }; } render(); });
+    ws.querySelector("#wb-on")?.addEventListener("change", (e) => { S.wb.enabled = e.target.checked; saveWb(); render(); });
+    ws.querySelector("#wb-entity")?.addEventListener("change", (e) => { S.wb.entity = e.target.value; saveWb(); renderSummary(); });
+    ws.querySelector("#wb-project")?.addEventListener("change", (e) => {
+      S.wb.project = e.target.value.trim().replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "myointeract";  // as W&B names projects
+      e.target.value = S.wb.project;
+      saveWb();
+      renderSummary();
+    });
+  }
+  function openWandb() {
+    const dlg = $("wandb-dialog");
+    $("wandb-key").value = "";
+    $("wandb-status").textContent = "";
+    $("wandb-go").onclick = async () => {
+      const key = $("wandb-key").value.trim();
+      if (!key) { $("wandb-status").textContent = "Paste your API key first."; return; }
+      $("wandb-status").textContent = "Checking the key with W&B…";
+      try {
+        S.wandb = await api("/api/wandb", { method: "POST", body: { api_key: key, remember: $("wandb-remember").checked } });
+        Object.assign(S.wb, { enabled: true, entity: S.wandb.entity });
+        saveWb();
+        $("wandb-key").value = "";
+        dlg.close();
+        render();
+      } catch (e) { $("wandb-status").textContent = e.message; }
+    };
+    dlg.showModal();
+  }
+
+  /* ---------------------------------------------------------------- 6 run */
+  function renderRun(ws) {
+    const connected = !!S.backend;
+    ws.append(h(`${head("Train")}
+      ${connected ? `<p class="muted">Backend: <span class="mono">${esc(S.backend)}</span></p>` : `<p class="demo-banner">Demo mode: no backend is connected, so this run is simulated. <button class="link-btn" type="button" data-connect>Connect compute</button> to train for real, or start <span class="mono">myo_studio serve</span> and <a href="${esc(handoffUrl())}" target="_blank" rel="noopener">continue on my machine with this setup</a>.</p>`}
+      <div class="chips"><button class="btn primary" type="button" id="start-run" ${S.run?.active ? "disabled" : ""}>${S.run?.active ? S.run.status === "stopping" || S.run.stopRequested ? "Stopping…" : "Running…" : "Start training"}</button><button class="btn" type="button" id="stop-run" ${S.run?.active && !S.run.stopRequested && S.run.status !== "stopping" && (!S.backend || S.run.id) ? "" : "disabled"}>${S.run?.status === "stopping" || S.run?.stopRequested ? "Stopping…" : "Stop"}</button>${S.run && S.run.id ? `<span class="muted mono" style="font-size:0.82rem">${esc(S.run.id)} · ${esc(S.run.status || "")}</span>` : ""}</div>
+      ${S.run && S.run.error ? `<p class="err">${esc(S.run.error)}</p>` : ""}
+      ${S.run && S.run.wandb_url ? `<p class="hint"><span class="wb-mark">W&amp;B</span><a href="${esc(S.run.wandb_url)}" target="_blank" rel="noopener">Open this run in Weights &amp; Biases</a></p>` : wandbOn() ? `<p class="hint"><span class="wb-mark">W&amp;B</span>Logs to W&amp;B as well: <span class="mono">${esc(wandbTarget())}</span> (<a href="#" data-go-step="4">change</a>)</p>` : ""}
+      ${gradioWarning() ? `<p class="demo-banner" id="run-warn">${gradioWarning()}</p>` : ""}
+      <div class="stat-row">
+        <div class="stat"><b id="st-steps">0</b><span>steps</span></div>
+        ${RUN_METRICS.map(([k, label]) => `<button class="stat stat-btn" type="button" data-metric="${k}" aria-pressed="${S.runMetric === k}" title="Show its training curve"><b id="st-${k}">–</b><span>${label()}</span></button>`).join("")}
+      </div>
+      <svg class="chart" id="run-chart" viewBox="0 0 640 220" role="img" aria-label="Training curves"></svg>
+      <div class="log" id="run-log" aria-live="polite">No run yet.</div>
+      ${S.backend ? `<p class="hint">While it trains, switch to <a href="#" data-go-step="6">Evaluate</a> to try the newest checkpoint (success rate, video, 3D viewer) and come back here for the curves; training keeps running in the background.</p>` : ""}
+      ${S.backend && S.run && S.run.id ? `<span class="hint"><a href="${esc(S.backend)}/api/runs/${encodeURIComponent(S.run.id)}/log" target="_blank" rel="noopener">Open the full training log</a> (refresh the tab for new lines)</span>` : ""}`));
+    ws.querySelector("#start-run").addEventListener("click", () => (S.backend ? startBackendRun() : startRun()));
+    ws.querySelectorAll("[data-go-step]").forEach((el) => el.addEventListener("click", (e) => { e.preventDefault(); go(+el.dataset.goStep); }));
+    ws.querySelector("#stop-run").addEventListener("click", stopRun);
+    ws.querySelectorAll("[data-metric]").forEach((b) => b.addEventListener("click", () => {
+      S.runMetric = b.dataset.metric;
+      ws.querySelectorAll("[data-metric]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      drawRun();
+    }));
+    drawRun();
+  }
+  async function stopRun() {
+    const run = S.run, backend = S.backend;
+    if (!run?.active || run.stopRequested || run.status === "stopping" || (backend && !run.id)) return;
+    if (!backend) { run.active = false; render(); return; }
+    run.stopRequested = true;
+    run.stopError = null;
+    run.error = null;
+    render();
+    try {
+      await api("/api/runs/" + run.id, { method: "DELETE" });
+      if (S.run !== run || S.backend !== backend) return;
+      if (!run.active) return; // the final poll may have arrived while DELETE was in flight
+      run.stopAcknowledged = true;
+      run.status = "stopping";
+      run.active = true; // final checkpoint publication and process exit are reported by followRun
+    } catch (e) {
+      if (S.run === run && S.backend === backend) run.error = run.stopError = "Could not stop training: " + e.message;
+    } finally {
+      if (S.run === run && S.backend === backend) { run.stopRequested = false; render(); }
+    }
+  }
+  function startRun() {
+    if (S.run && S.run.active) return;
+    const total = S.rl.steps;
+    S.run = { active: true, t: 0, pts: [], log: [`[demo] configuration accepted · ${MODELS.find((m) => m.id === S.bm.bm_model).name} · ${liveTargets().length} target(s) · ${S.rl.envs} envs`] };
+    render();
+    const tick = () => {
+      if (!S.run.active) return;
+      S.run.t = Math.min(total, S.run.t + total / 60);
+      const x = S.run.t / total;
+      const succ = Math.max(0, Math.min(0.97, 1.05 / (1 + Math.exp(-9 * (x - 0.35))) - 0.05 + (Math.random() - 0.5) * 0.03));
+      const rew = -40 + 55 * succ + (Math.random() - 0.5) * 2;
+      S.run.pts.push([S.run.t, succ, rew]);
+      if (S.run.pts.length % 10 === 0) S.run.log.push(`iteration ${Math.round(S.run.t / (S.rl.envs * S.rl.unroll))}: success ${(succ * 100).toFixed(0)}%, checkpoint saved`);
+      if (S.run.t >= total) { S.run.active = false; S.run.log.push("[demo] training finished · model_final.pt"); }
+      if (S.step === 5) drawRun();
+      if (S.run.active) setTimeout(tick, 120); else if (S.step === 5) render();
+    };
+    tick();
+  }
+  async function startBackendRun() {
+    if (S.run && S.run.active) return;
+    const mine = (S.run = { active: true, status: "starting", pts: [], log: ["Starting myo_train on the backend…"] }), backend = S.backend;
+    render();
+    try {
+      const wandb = wandbOn() ? { project: S.wb.project, entity: wandbEntity() } : undefined;
+      const run = await api("/api/runs", { method: "POST", body: { preset: toPreset(), name: S.preset, wandb } });
+      if (S.run !== mine || S.backend !== backend) return;
+      mine.id = run.id;
+      followRun(run.id);
+    } catch (e) { if (S.run === mine && S.backend === backend) { S.run = { active: false, pts: [], log: [], error: e.message }; render(); } }
+  }
+  async function followRun(id) {
+    const run = S.run, backend = S.backend;
+    const current = () => S.run === run && run.id === id && S.backend === backend;
+    while (current()) {
+      let r;
+      try { r = await api("/api/runs/" + id); }
+      catch (e) {
+        if (!current()) return;
+        run.error = "Could not refresh training status: " + e.message + ". Retrying…";
+        if (S.step === 5) render();
+        await sleep(3000);
+        continue;
+      }
+      if (!current()) return;
+      run.error = run.stopError || null;
+      S.run.status = run.stopAcknowledged && ["running", "starting"].includes(r.status) ? "stopping" : r.status;
+      S.run.wandb_url = r.wandb_url || null;
+      S.run.log = (r.log || "").split("\n");
+      S.run.checkpoints = r.checkpoints;
+      const pts = (r.metrics && r.metrics.points) || [];
+      S.run.pts = pts.filter((q) => q.steps != null).map((q) => [q.steps, q.success ?? 0, q.reward ?? 0, q.episode_s]);
+      S.run.active = ["running", "starting", "stopping"].includes(S.run.status);
+      if (S.run.status === "running" && !S.run.viewerStarted && !(S.viewer && S.viewer.step === S.step)) {
+        S.run.viewerStarted = true;
+        openViewer({ run: id, follow: true }, 6, `${r.name || id} · follows training`, r.name || id);
+      }
+      if (S.step === 5) render();
+      if (!S.run.active) break;
+      await sleep(3000);
+    }
+  }
+  // The training tiles that pick the curve: key, label, value of a point [steps, success, reward, episode s], format.
+  const RUN_METRICS = [
+    ["success", () => "success rate", (p) => p[1], (v, axis) => Math.round(v * 100) + "%"],
+    ["reward", () => "mean episode reward", (p) => p[2], (v, axis) => v.toFixed(axis && Math.abs(v) >= 10 ? 0 : 1)],
+    ["time", () => (S.backend ? "episode length (s)" : "time to target (s)"), (p) => (S.backend ? p[3] ?? null : 2.6 - 1.4 * p[1]), (v) => v.toFixed(2)],
+  ];
+  function drawRun() {
+    const svg = $("run-chart");
+    if (!svg) return;
+    const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    const W = 640, H = 220, L = 44, R = 12, T = 12, B = 28;
+    const pts = (S.run && S.run.pts) || [];
+    const metric = RUN_METRICS.find(([k]) => k === S.runMetric) || RUN_METRICS[0];
+    const [key, label, value, show] = metric;
+    const vals = pts.map((p) => [p[0], value(p)]).filter(([, v]) => v != null && Number.isFinite(v));
+    // y range: 0..100 % for the success rate, the data's own range (padded) otherwise
+    let lo = 0, hi = 1;
+    if (key !== "success" && vals.length) {
+      lo = Math.min(...vals.map((q) => q[1])); hi = Math.max(...vals.map((q) => q[1]));
+      const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.1 || 1;
+      lo -= pad; hi += pad;
+    }
+    const ys = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B), xs = (s) => L + (s / S.rl.steps) * (W - L - R);
+    let out = "";
+    for (let k = 0; k <= 4; k++) { const v = lo + (k / 4) * (hi - lo), y = ys(v); out += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${show(v, true)}</text>`; }
+    out += `<text x="${L}" y="${H - 8}">0</text><text x="${W - R}" y="${H - 8}" text-anchor="end">${fmt(S.rl.steps)} steps</text>`;
+    if (vals.length) {
+      const d = vals.map(([s, v], i) => `${i ? "L" : "M"}${xs(s).toFixed(1)},${ys(v).toFixed(1)}`).join("");
+      const base = H - B;
+      out += `<path d="${d}L${xs(vals[vals.length - 1][0])},${base}L${xs(vals[0][0])},${base}Z" fill="${css("--accent")}" opacity="0.12"/>`;
+      out += `<path d="${d}" fill="none" stroke="${css("--accent")}" stroke-width="2"/>`;
+      const end = vals[vals.length - 1];
+      out += `<circle cx="${xs(end[0])}" cy="${ys(end[1])}" r="4" fill="${css("--accent")}"/>`;
+    } else out += `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">${pts.length ? "No values for this curve yet" : label()[0].toUpperCase() + label().slice(1) + " appears here while training runs"}</text>`;
+    if (pts.length) {
+      const last = pts[pts.length - 1];
+      $("st-steps").textContent = fmt(Math.round(last[0]));
+      for (const [k, , v, f] of RUN_METRICS) { const x = v(last); $("st-" + k).textContent = x == null ? "–" : f(x); }
+    }
+    svg.innerHTML = out;
+    const log = $("run-log");
+    if (log && S.run) { log.textContent = S.run.log.join("\n"); log.scrollTop = log.scrollHeight; log.style.whiteSpace = "pre-wrap"; }
+  }
+
+  /* ---------------------------------------------------------------- 7 evaluate */
+  function renderEvaluate(ws) {
+    if (S.backend) return renderEvaluateBackend(ws);
+    if (S.examples.length) return renderEvaluateExamples(ws);
+    const has = S.run && S.run.pts.length;
+    const last = has ? S.run.pts[S.run.pts.length - 1] : null;
+    ws.append(h(`${head("Evaluate", "The deterministic policy on fresh episodes: success, time, effort and muscle activity.")}
+      <p class="demo-banner">Demo mode: these numbers are simulated. Connect a backend to evaluate real checkpoints.</p>
+      <div class="stat-row">
+        <div class="stat"><b>${has ? Math.round(last[1] * 100 * 0.97) + "%" : "–"}</b><span>success rate</span></div>
+        <div class="stat"><b>${has ? (2.5 - 1.3 * last[1]).toFixed(2) + " s" : "–"}</b><span>time to target</span></div>
+        <div class="stat"><b>${has ? (0.31 - 0.08 * last[1]).toFixed(2) : "–"}</b><span>mean excitation</span></div>
+        <div class="stat"><b>${S.bm.fatigue_enabled ? (has ? "0.21" : "–") : "off"}</b><span>final fatigue (MF)</span></div>
+      </div>
+      <div class="video-ph">Rollout video of the deterministic policy<br>(rendered by the backend)</div>`));
+  }
+  const pct = (v) => (v == null ? "–" : Math.round(v * 100) + "%");
+  // Share of episodes that reached each target (visited in order), as bars in the targets' own colours;
+  // `session` (optional) marks this page's own simulation as a tick. Only for tasks with several targets.
+  function targetsHtml(rates, colors = [], session = null, caption = "") {
+    if (!rates || rates.length < 2) return "";
+    const col = (k) => { const c = colors[k]; return c ? `rgb(${c.slice(0, 3).map((x) => Math.round(255 * x)).join(",")})` : "var(--accent)"; };
+    const rows = rates.map((r, k) => `<div class="tgt-row" title="Target ${k + 1}: reached in ${pct(r)} of the episodes${session && session[k] != null ? `, ${pct(session[k])} in this session` : ""}"><span><span class="swatch" style="background:${col(k)}"></span>Target ${k + 1}</span><span class="mbar-track"><span class="mbar-fill" style="width:${(100 * r).toFixed(1)}%;background:${col(k)}"></span>${session && session[k] != null ? `<span class="mbar-tick" style="left:${(100 * session[k]).toFixed(1)}%"></span>` : ""}</span><span class="mono">${pct(r)}</span></div>`).join("");
+    return `<div class="tgt-box" id="tgt-box"><div class="group-title"><b>Targets reached</b><span class="hint">${caption}</span></div>${rows}</div>`;
+  }
+  const simTargetRates = (sim) => (sim && sim.episodes ? sim.reached.map((c) => c / sim.episodes) : null);
+  const exampleTargets = (ex) => targetsHtml(ex.evaluation.targets_reached, ex.replay.hello.targets.map((t) => t.rgba), ex.sim && S.evalMode === "live" ? simTargetRates(S.sim) : null,
+    `share of ${ex.evaluation.episodes} episodes${ex.sim && S.evalMode === "live" ? ' · <span class="tick-key"></span> this session' : ""}`);
+  // The evaluation tiles pick what is shown below them: the targets reached, or the spread over the episodes.
+  const EVAL_METRICS = [
+    ["success", "success rate", (r) => pct(r.success_rate)],
+    ["time", "time to success", (r) => (r.time_to_success_s != null ? r.time_to_success_s.toFixed(2) + " s" : "–"), "time_s", (v) => v.toFixed(2) + " s", "solved episodes"],
+    ["excitation", "mean excitation", (r) => r.mean_excitation.toFixed(2), "excitation", (v) => v.toFixed(2), "episodes"],
+    ["mf", "final fatigue (MF)", (r) => (r.final_mf == null ? "off" : r.final_mf.toFixed(2)), "final_mf", (v) => v.toFixed(2), "episodes"],
+  ];
+  const evalValues = (res, m) => (res && res.per_episode && res.per_episode[m[3]] ? res.per_episode[m[3]].filter((v) => v != null) : []);
+  const evalPick = (res, targets) => {
+    const can = (m) => !!res && (m[0] === "success" ? !!targets() : evalValues(res, m).length > 0);
+    return { can, sel: EVAL_METRICS.find((m) => m[0] === S.evalMetric && can(m)) || EVAL_METRICS.find(can) };
+  };
+  // Histogram of one metric over the evaluated episodes, with its mean.
+  function evalHist(res, m) {
+    const [, label, , , show, of] = m, vals = evalValues(res, m), n = vals.length, bins = 20;
+    const W = 380, H = 130, L = 34, R = 8, T = 8, B = 22;
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (hi - lo < 1e-9) { lo -= 0.05; hi += 0.05; }
+    const counts = new Array(bins).fill(0);
+    for (const v of vals) counts[Math.min(bins - 1, Math.floor(((v - lo) / (hi - lo)) * bins))]++;
+    const top = Math.max(...counts) / n, mean = vals.reduce((a, b) => a + b, 0) / n;
+    const xs = (v) => L + ((v - lo) / (hi - lo)) * (W - L - R), ys = (f) => T + (1 - f / top) * (H - T - B), bw = (W - L - R) / bins;
+    let out = "";
+    for (let k = 0; k <= 2; k++) { const f = (k / 2) * top, y = ys(f); out += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y}" y2="${y}"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${Math.round(f * 100)}%</text>`; }
+    counts.forEach((c, k) => { if (c) out += `<rect x="${(L + k * bw + 1).toFixed(1)}" y="${ys(c / n).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${(H - B - ys(c / n)).toFixed(1)}" rx="2" style="fill:var(--accent);opacity:0.75"><title>${show(lo + (k * (hi - lo)) / bins)} to ${show(lo + ((k + 1) * (hi - lo)) / bins)}: ${c} of ${n}</title></rect>`; });
+    out += `<line x1="${xs(mean)}" x2="${xs(mean)}" y1="${T}" y2="${H - B}" style="stroke:var(--ink);stroke-width:2;stroke-dasharray:4 3;opacity:0.6"/>`;
+    out += `<text x="${L}" y="${H - 8}">${show(lo)}</text><text x="${W - R}" y="${H - 8}" text-anchor="end">${show(hi)}</text>`;
+    return `<div class="tgt-box"><div class="group-title"><b>${label[0].toUpperCase() + label.slice(1)}</b><span class="hint">share of ${n} ${of} · dashed: mean ${show(mean)}</span></div><svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${label} per episode">${out}</svg></div>`;
+  }
+  const evalDetail = (res, targets) => { const { sel } = evalPick(res, targets); return !sel ? "" : sel[0] === "success" ? targets() : evalHist(res, sel); };
+  // `targets` gives the targets-reached box (re-read on every click, so the session tick stays fresh).
+  const statRow = (res, targets = () => "") => {
+    const { can, sel } = evalPick(res, targets);
+    return `<div class="stat-row">${EVAL_METRICS.map((m) => {
+      const inner = `<b>${res ? m[2](res) : "–"}</b><span>${m[1]}</span>`;
+      return can(m) ? `<button class="stat stat-btn" type="button" data-eval-metric="${m[0]}" aria-pressed="${m === sel}" title="${m[0] === "success" ? "Show the targets reached" : "Show its spread over the episodes"}">${inner}</button>` : `<div class="stat">${inner}</div>`;
+    }).join("")}</div><div id="ev-detail">${evalDetail(res, targets)}</div>`;
+  };
+  function bindEvalTiles(ws, res, targets) {
+    ws.querySelectorAll("[data-eval-metric]").forEach((b) => b.addEventListener("click", () => {
+      S.evalMetric = b.dataset.evalMetric;
+      ws.querySelectorAll("[data-eval-metric]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      $("ev-detail").innerHTML = evalDetail(res, targets);
+    }));
+  }
+  const exampleNote = (ex) => [(MODELS.find((m) => m.id === ex.replay.hello.model) || {}).name, ex.summary && `${ex.summary.targets} target${ex.summary.targets === 1 ? "" : "s"}`, ex.training_steps && `trained for ${Math.round(ex.training_steps / 1e6)} M steps`, `evaluated on ${ex.evaluation.episodes} episodes`].filter(Boolean).join(" · ");
+  function renderEvaluateExamples(ws) {
+    // the example chosen here, else the one trained on the task in the editor, else the first
+    const ex = S.examples.find((e) => e.name === S.exampleSel) || S.examples.find((e) => e.name === S.preset) || S.examples[0];
+    const mine = ex.name === S.preset, exTargets = () => exampleTargets(ex);
+    ws.append(h(`${head("Evaluate", "The deterministic policy on fresh episodes: success, time, effort and muscle activity.")}
+      <p class="demo-banner">Example policies, trained and evaluated in advance. <button class="link-btn" type="button" data-connect>Connect compute</button> to evaluate your own runs, or any policy on the setup in the editor (out of distribution).</p>
+      <p class="mode-note"><span class="mode-badge eval">Evaluation</span>${mine ? `The ${esc(ex.title)} policy, on the task it was trained on.` : `The ${esc(ex.title)} example on <b>its own task</b>, not the one in the editor. <a href="#" id="ex-open-note">Open its task in the editor</a> to work on it.`}</p>
+      <div class="field"><label for="ex-sel">Example policy</label><select id="ex-sel">${S.examples.map((e) => `<option value="${esc(e.name)}" ${e === ex ? "selected" : ""}>${esc(e.title)}</option>`).join("")}</select>
+        <span class="hint">${esc(exampleNote(ex))}</span></div>
+      <div class="chips">${ex.sim && S.evalMode === "live" ? "" : `<span class="hint">The 3D view replays a recorded rollout.</span>`}<button class="btn small" type="button" id="ex-open">Open the task in the editor</button></div>
+      <p class="err" id="ex-msg" hidden></p>
+      ${statRow(ex.evaluation, exTargets)}
+      ${ex.sim && S.evalMode === "live" ? `<p class="hint">Simulated in this page with MuJoCo: a new start pose and new targets every episode${ex.summary && ex.summary.fatigue ? ", from a random fatigue state" : ""}. <span id="sim-stats">${S.sim ? simStats(S.sim) : ""}</span> <a href="#" id="sim-reset" title="Start the count again from a new episode">Reset</a></p><p class="hint">The Muscles card shows the busiest muscles live and the muscle groups per episode. "Play example policy" in the Task step runs it on your own target ranges.</p>` : ""}`));
+    if (ws.querySelector("#sim-reset")) ws.querySelector("#sim-reset").addEventListener("click", (e) => {
+      e.preventDefault();
+      const sim = S.sim;
+      if (!sim || !sim.engine) return;
+      Object.assign(sim, { wins: 0, episodes: 0, wait: 0, reached: sim.reached.map(() => 0) });
+      simReset(sim);
+      if (S.mus) { S.mus.meter?.reset(); S.mus.jmeter?.reset(); renderMuscleCard(true); }
+      $("sim-stats").textContent = "0 of 0 episodes solved in this session";
+      renderSceneBar();
+    });
+    if (ex.sim && S.evalMode === "live") startSim(ex, 6); else if (S.sim && S.sim.step === 6) stopSim();
+    bindEvalTiles(ws, ex.evaluation, exTargets);
+    ws.querySelector("#ex-sel").addEventListener("change", (e) => { S.exampleSel = e.target.value; render(); });
+    ws.querySelector("#ex-open-note")?.addEventListener("click", (e) => { e.preventDefault(); ws.querySelector("#ex-open").click(); });
+    ws.querySelector("#ex-open").addEventListener("click", () => openExampleTask(ex.name).catch((e) => { const m = $("ex-msg"); m.hidden = false; m.textContent = "Could not open the task: " + e.message; }));
+    loadReplay(ex);
+  }
+  const ago = (sec) => sec == null ? "" : sec < 90 ? `${sec} s ago` : sec < 5400 ? `${Math.round(sec / 60)} min ago` : sec < 172800 ? `${Math.round(sec / 3600)} h ago` : `${Math.round(sec / 86400)} days ago`;
+  const runSummary = (r) => {
+    const m = r.summary;
+    if (!m) return "";
+    return [m.model, `${m.targets} target${m.targets === 1 ? "" : "s"}`, m.fatigue && "fatigue", m.vision && "vision"].filter(Boolean).join(", ");
+  };
+  const FOLLOW = "__follow__";
+  const isLive = (r) => ["running", "starting", "stopping"].includes(r.status);
+  const ckptLabel = (c, r, newest) => {
+    const it = c.match(/model_(\d+|final)/);
+    return [it ? (it[1] === "final" ? "final" : "iteration " + it[1]) : c, r.source !== "examples" && ago(r.checkpoint_age_s && r.checkpoint_age_s[c]), newest && r.source !== "examples" && "newest"].filter(Boolean).join(" · ");
+  };
+  async function loadRuns(force) {
+    if (!force && S.runsFetchedAt && Date.now() - S.runsFetchedAt < 3000) return;
+    S.runsFetchedAt = Date.now();
+    try { S.runs = await api("/api/runs"); } catch (e) { S.evalJob = { ...(S.evalJob || {}), error: e.message }; }
+    if (S.step === 6) render();
+  }
+  function renderEvaluateBackend(ws) {
+    const ev = S.evalJob || {};
+    // Training runs are listed at once (their first checkpoint follows); finished ones once evaluable.
+    const runs = S.runs.filter((r) => isLive(r) || (r.evaluable && r.checkpoints.length));
+    const live = runs.filter(isLive), studio = runs.filter((r) => !isLive(r) && r.source === "studio"), other = runs.filter((r) => !isLive(r) && r.source === "logs"), examples = runs.filter((r) => r.source === "examples");
+    const sel = ev.run || (live[0] && live[0].id) || (S.run && S.run.id) || (runs[0] && runs[0].id) || "";
+    const run = runs.find((r) => r.id === sel) || runs[0];
+    const ckpts = run ? run.checkpoints.slice().reverse() : [];
+    const following = run && isLive(run);  // a training run: the viewer follows its newest checkpoint by default
+    const choices = following ? [FOLLOW, ...ckpts] : ckpts;
+    const ckpt = ev.checkpoint && choices.includes(ev.checkpoint) ? ev.checkpoint : choices[0];
+    // An example shows its stored evaluation until it is evaluated again here.
+    const stored = !!(run && run.example && !ev.busy && S.evalTask === "trained" && !(ev.result && !ev.ood && ev.label && ev.label.startsWith(run.id + " ·")));
+    // a result only stands for the task it ran on (as trained, or the setup in the editor)
+    const res = stored ? run.example.evaluation : ev.result && !!ev.ood === (S.evalTask === "editor") ? ev.result : null;
+    const resTargets = () => (res ? targetsHtml(res.targets_reached, (run && run.example ? run.example.replay.hello.targets : S.live ? S.live.targets : []).map((t) => t.rgba), null, `share of ${res.episodes} episodes`) : "");
+    const opt = (r) => `<option value="${esc(r.id)}" ${run && r.id === run.id ? "selected" : ""}>${esc(r.name)}${runSummary(r) ? " · " + esc(runSummary(r)) : ""} · ${r.checkpoints.length} checkpoint${r.checkpoints.length === 1 ? "" : "s"}</option>`;
+    const group = (label, list) => (list.length ? `<optgroup label="${label}">${list.map(opt).join("")}</optgroup>` : "");
+    ws.append(h(`${head("Evaluate", "The deterministic policy on fresh episodes: success, time, effort and muscle activity.")}
+      ${live.length ? `<p class="muted">Training now: <b>${esc(live.map((r) => r.name).join(", "))}</b>. Its newest checkpoint appears here within seconds of being saved; switch to <a href="#" data-go-step="5">Train</a> for the curves.</p>` : ""}
+      <div class="grid2">
+        <div class="field"><label for="ev-run">Run</label><select id="ev-run">${runs.length ? group("Training now", live) + group("Started in Studio", studio) + group("Other runs (logs/rsl_rl)", other) + group("Example policies", examples) : "<option>No runs with checkpoints yet</option>"}</select>
+          <span class="hint">${run && run.example ? `${esc(exampleNote(run.example))} · <a href="#" id="ev-open">open its task in the editor</a>` : run ? esc(`${run.status}${run.log_dir ? " · " + run.log_dir.split("/").slice(-2).join("/") : ""}`) : ""} · <a href="#" id="ev-refresh">refresh</a></span></div>
+        <div class="field"><label for="ev-ckpt">Checkpoint</label><select id="ev-ckpt" ${choices.length ? "" : "disabled"}>${choices.length ? choices.map((c, i) => `<option value="${esc(c)}" ${c === ckpt ? "selected" : ""}>${c === FOLLOW ? "Newest · follows training" : esc(ckptLabel(c, run, c === ckpts[0]))}</option>`).join("") : "<option>Waiting for the first checkpoint…</option>"}</select></div>
+        <div class="field"><label for="ev-task">Task</label><select id="ev-task">${[["trained", "As trained"], ["editor", "Setup in the editor (out of distribution)"]].map(([k, l]) => `<option value="${k}" ${S.evalTask === k ? "selected" : ""}>${l}</option>`).join("")}</select>
+          <span class="hint">${S.evalTask === "editor" ? `The targets and episode length from the Task step; the run keeps its body model, timing and observations. <a href="#" data-go-step="1">Edit the targets</a>` : "The task the run was trained on."}</span></div>
+        <div class="field"><label for="ev-eps">Episodes</label><select id="ev-eps">${[64, 256, 1024].map((n) => `<option ${n === (ev.episodes || 64) ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        <div class="field"><span class="lab">&nbsp;</span><div class="chips"><button class="btn primary" type="button" id="ev-go" ${ckpts.length && !ev.busy ? "" : "disabled"}>${ev.busy ? "Evaluating…" : "Evaluate"}</button></div><span class="hint">Success rate and effort over many episodes; the 3D view plays the policy live (<a href="#" id="ev-viser">or in the viser viewer</a>).</span></div>
+      </div>
+      ${ev.error ? `<p class="err">${esc(ev.error)}</p>` : ""}
+      ${stored ? `<p class="muted">Stored result of this example; Evaluate runs it again on this machine.</p>` : res && ev.label ? `<p class="muted">Result for ${esc(ev.label)}</p>` : ""}
+      ${res && res.task_changes ? oodHtml(res.task_changes) : ""}
+      ${statRow(res, resTargets)}
+      ${res && res.video ? `<video class="media" src="${esc(S.backend)}/api/jobs/${encodeURIComponent(ev.id)}/files/${encodeURIComponent(res.video)}" controls autoplay muted loop playsinline></video>` : ""}`));
+    const runSel = ws.querySelector("#ev-run"), ckSel = ws.querySelector("#ev-ckpt");
+    bindEvalTiles(ws, res, resTargets);
+    runSel.addEventListener("change", () => { S.evalJob = { ...ev, run: runSel.value, checkpoint: null }; S.viewerClosed = false; render(); });
+    ckSel.addEventListener("change", () => { S.evalJob = { ...ev, run: runSel.value, checkpoint: ckSel.value }; });
+    ws.querySelector("#ev-task").addEventListener("change", (e) => { S.evalTask = e.target.value; S.viewerClosed = false; render(); });
+    if (ws.querySelector("#ev-open")) ws.querySelector("#ev-open").addEventListener("click", (e) => { e.preventDefault(); openExampleTask(run.example.name).catch((err) => { S.evalJob = { ...ev, error: err.message }; render(); }); });
+    ws.querySelector("#ev-refresh").addEventListener("click", (e) => { e.preventDefault(); loadRuns(true); });
+    ws.querySelectorAll("[data-go-step]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); go(+a.dataset.goStep); }));
+    ckSel.addEventListener("change", () => { S.viewerClosed = false; showRunInViewer(run, ckSel.value); });
+    ws.querySelector("#ev-viser").addEventListener("click", (e) => {
+      e.preventDefault();
+      if (!run) return;
+      const tab = window.open("about:blank", "_blank");  // opened by the click, filled once the viewer runs
+      S.viewerClosed = true;  // keep the viser viewer until the page is asked for its own view again
+      openViewer({ ...viewerBody(run, ckSel.value), kind: "viser" }, 6, run.name).then(() => { if (tab && S.viewer && S.viewer.ready) tab.location = `${S.backend}/viewer/`; });
+    });
+    ws.querySelector("#ev-go").addEventListener("click", () => evaluateCheckpoint(runSel.value, ckSel.value === FOLLOW ? ckpts[0] : ckSel.value, +ws.querySelector("#ev-eps").value));
+    // The live viewer is the default view of this step: open it for the selection (kept if unchanged).
+    if (run && (ckpt || following) && !S.viewerClosed) showRunInViewer(run, ckpt);
+    loadRuns(false);
+    // While any run is training (or this page just started one), keep the list and checkpoints fresh.
+    clearTimeout(S.evalPoll);
+    if (S.runs.some(isLive) || (S.run && S.run.active)) S.evalPoll = setTimeout(() => { if (S.step === 6 && !(S.evalJob && S.evalJob.busy)) loadRuns(true); }, 8000);
+  }
+  // With "Setup in the editor" the run's policy plays on the editor's targets (out of distribution).
+  const viewerBody = (run, ckpt) => ({ ...(ckpt === FOLLOW || !ckpt ? { run: run.id, follow: true } : { run: run.id, checkpoint: ckpt }), ...(S.evalTask === "editor" ? { preset: toPreset() } : {}) });
+  function showRunInViewer(run, ckpt) {
+    const where = S.evalTask === "editor" ? " · setup in the editor" : "";
+    openViewer(viewerBody(run, ckpt), 6, `${run.name} · ${ckpt === FOLLOW || !ckpt ? "follows training" : ckpt}${where}`, run.name + where);
+  }
+  // What the editor's setup changes against the run's training (the worker's task_changes).
+  function oodHtml(changes) {
+    const rows = changes.slice(0, 8).map((c) => `<li class="mono">${esc(c)}</li>`).join("") + (changes.length > 8 ? `<li class="muted">and ${changes.length - 8} more</li>` : "");
+    return `<div class="tgt-box ood-box"><div class="group-title"><b>Out of distribution</b><span class="hint">${changes.length ? `the setup in the editor, ${changes.length} change${changes.length === 1 ? "" : "s"} from training` : "the setup in the editor matches the trained one"}</span></div>${changes.length ? `<ul>${rows}</ul>` : ""}</div>`;
+  }
+  async function evaluateCheckpoint(run, checkpoint, episodes) {
+    const ood = S.evalTask === "editor", label = `${run} · ${checkpoint}${ood ? " · setup in the editor" : ""}`;
+    S.evalJob = { run, checkpoint, episodes, busy: true };
+    render();
+    try {
+      const job = await pollJob((await api("/api/evaluations", { method: "POST", body: { run, checkpoint, episodes, video_seconds: 0, ...(ood ? { preset: toPreset() } : {}) } })).id);
+      if (job.status !== "done") throw new Error(job.log.split("\n").slice(-3).join(" ") || "evaluation failed");
+      S.evalJob = { run, checkpoint, episodes, id: job.id, result: job.result, label, ood };
+    } catch (e) { S.evalJob = { run, checkpoint, episodes, error: e.message }; }
+    if (S.step === 6) render();
+  }
+
+  /* ---------------------------------------------------------------- summary + config */
+  function toPreset() {
+    const tgt = {};
+    const on = liveTargets();
+    for (let i = 0; i < Math.max(10, on.length); i++) {
+      const t = on[i] || on[0];
+      const rgb = hexToRgba(t.color);
+      tgt[`target_${i + 1}`] = {
+        radio: t.type === "Button" ? "Box" : "Sphere",
+        box: { box_position_x: [...t.x], box_position_y: [...t.y], box_position_z: [...t.z], box_size_x: [t.bw || 0.05, t.bw || 0.05], box_size_y: [t.bh || 0.05, t.bh || 0.05], min_touch_force: t.force, orientation_angle: t.angle, ...(t.quat && quatToEuler ? { euler: quatToEuler(t.quat), quat: t.quat } : {}), ...(t.bt ? { box_thickness: t.bt } : {}), rgb },
+        sphere: { x_range: [...t.x], y_range: [...t.y], z_range: [...t.z], size_range: [...t.size], dwell_duration: t.dwell, rgb },
+      };
+    }
+    return {
+      rl: { "Number of Total Training Steps": S.rl.steps, "Checkpoint Interval (in Number of Training Iterations)": S.rl.ckpt, "Number of Parallel Environments": S.rl.envs, "Unroll Length": S.rl.unroll, "Number of Minibatches": S.rl.minibatches, "Number of Epochs Per Update": S.rl.epochs, "Target Initial Seed": S.rl.seed },
+      num_targets: on.length,
+      ...tgt,
+      bm: { ...S.bm },
+      task: { max_duration: S.task.max_duration, reject_oor: S.task.reject_unreachable },
+      obs: {
+        qpos: OBS.body.map(([k]) => S.obs[k]), qvel: OBS.fatigue.map(([k]) => S.obs[k]),
+        qacc: OBS.vision.map(([k]) => S.obs[k]), ee_pos: OBS.task.map(([k]) => S.obs[k]),
+      },
+      reward: Object.fromEntries(Object.entries(S.reward).filter(([k]) => !EXTRA_REWARDS.includes(k))),
+      extra_overrides: EXTRA_REWARDS.filter((k) => S.reward[k] > 0).map((k) => `++env.task_config.weighted_reward_keys.${k}=${S.reward[k]}`),
+    };
+  }
+  function presetObject(value, path) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${path} must be an object`);
+    return value;
+  }
+  function presetNumber(value, path, min = -Infinity, integer = false, max = Infinity) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max || (integer && !Number.isSafeInteger(value))) {
+      throw new Error(`${path} must be a finite ${integer ? "integer" : "number"}${min !== -Infinity ? ` >= ${min}` : ""}${max !== Infinity ? ` and <= ${max}` : ""}`);
+    }
+    return value;
+  }
+  function presetBoolean(value, path) {
+    if (typeof value !== "boolean") throw new Error(`${path} must be true or false`);
+    return value;
+  }
+  function presetText(value, path) {
+    if (typeof value !== "string") throw new Error(`${path} must be text`);
+    return value;
+  }
+  function presetVector(value, length, path) {
+    if (!Array.isArray(value) || value.length !== length) throw new Error(`${path} must contain ${length} numbers`);
+    return value.map((v, i) => presetNumber(v, `${path}[${i}]`));
+  }
+  function presetRange(value, path, positive = false) {
+    const range = presetVector(value, 2, path);
+    if (range[0] > range[1] || (positive && range[0] <= 0)) throw new Error(`${path} must be ordered${positive ? " and positive" : ""}`);
+    return range;
+  }
+  function presetQuaternion(value, path) {
+    const q = presetVector(value, 4, path), norm = Math.hypot(...q);
+    if (!Number.isFinite(norm) || norm === 0) throw new Error(`${path} must be a nonzero finite quaternion`);
+    return q.map((v) => v / norm);
+  }
+  function normalizeTarget(value, path, index) {
+    const t = presetObject(value, path);
+    if (!["Sphere", "Button"].includes(t.type)) throw new Error(`${path}.type must be Sphere or Button`);
+    const color = t.color === undefined ? COLORS[index % COLORS.length] : rgbaToHex(t.color);
+    if (!color) throw new Error(`${path}.color must be #RRGGBB, rgb(...) or rgba(...) with valid channel values`);
+    const out = {
+      type: t.type, x: presetRange(t.x, `${path}.x`), y: presetRange(t.y, `${path}.y`), z: presetRange(t.z, `${path}.z`),
+      size: presetRange(t.size === undefined ? [0.01, 0.03] : t.size, `${path}.size`, true),
+      dwell: presetNumber(t.dwell === undefined ? 0.25 : t.dwell, `${path}.dwell`, 0), force: presetNumber(t.force === undefined ? 1 : t.force, `${path}.force`, 0),
+      angle: presetNumber(t.angle === undefined ? 90 : t.angle, `${path}.angle`), color,
+    };
+    for (const k of ["bw", "bh", "bt"]) if (t[k] !== undefined) out[k] = presetNumber(t[k], `${path}.${k}`, Number.MIN_VALUE);
+    if (t.quat !== undefined) out.quat = presetQuaternion(t.quat, `${path}.quat`);
+    for (const k of ["disabled", "turned"]) if (t[k] !== undefined) out[k] = presetBoolean(t[k], `${path}.${k}`);
+    if (t.screenEl !== undefined) out.screenEl = presetNumber(t.screenEl, `${path}.screenEl`, 0, true);
+    return out;
+  }
+  function normalizeScreen(value) {
+    const s = presetObject(value, "screen"), image = presetText(s.image, "screen.image");
+    if (!/^data:image\/[a-z0-9.+-]+[;,]/i.test(image)) throw new Error("screen.image must be an image data URL");
+    if (s.elements !== undefined && !Array.isArray(s.elements)) throw new Error("screen.elements must be an array");
+    return {
+      name: presetText(s.name === undefined ? "Screen" : s.name, "screen.name"), image,
+      width: presetNumber(s.width, "screen.width", Number.MIN_VALUE), height: presetNumber(s.height, "screen.height", Number.MIN_VALUE),
+      widthM: presetNumber(s.widthM, "screen.widthM", Number.MIN_VALUE), pos: presetVector(s.pos, 3, "screen.pos"),
+      quat: presetQuaternion(s.quat === undefined ? [0, 0, 0, 1] : s.quat, "screen.quat"), more: presetNumber(s.more === undefined ? 0 : s.more, "screen.more", 0, true),
+      elements: (s.elements ?? []).map((el, i) => {
+        const e = presetObject(el, `screen.elements[${i}]`), p = `screen.elements[${i}]`;
+        return { name: presetText(e.name === undefined ? "" : e.name, `${p}.name`), x: presetNumber(e.x, `${p}.x`), y: presetNumber(e.y, `${p}.y`),
+          w: presetNumber(e.w, `${p}.w`, Number.MIN_VALUE), h: presetNumber(e.h, `${p}.h`, Number.MIN_VALUE) };
+      }),
+    };
+  }
+  function normalizePreset(value) {
+    const p = presetObject(value, "preset"), out = structuredClone(DEFAULTS);
+    // A partial preset resets omitted fields, including targets, to defaults. Parse everything
+    // before touching S: a bad final target must not erase a user's already edited setup.
+    out.task.reject_unreachable = false;
+    if (p.bm !== undefined) {
+      const b = presetObject(p.bm, "bm");
+      for (const key of Object.keys(out.bm)) {
+        if (b[key] === undefined) continue;
+        if (typeof out.bm[key] === "boolean") out.bm[key] = presetBoolean(b[key], `bm.${key}`);
+        else if (key === "ctrl_dt") out.bm[key] = presetNumber(b[key], "bm.ctrl_dt", Number.MIN_VALUE);
+        else out.bm[key] = presetText(b[key], `bm.${key}`);
+      }
+      if (!MODELS.some((m) => m.id === out.bm.bm_model)) throw new Error(`bm.bm_model is not offered in Studio: ${out.bm.bm_model}`);
+      if (!RESETS.some(([r]) => r === out.bm.reset_type)) throw new Error(`bm.reset_type is not supported: ${out.bm.reset_type}`);
+      if (!["mjlab", "warp", "mjx", "mujoco"].includes(out.bm.mj_impl_type)) throw new Error("bm.mj_impl_type is not supported");
+    }
+    if (p.task !== undefined) {
+      const t = presetObject(p.task, "task");
+      if (t.max_duration !== undefined) out.task.max_duration = presetNumber(t.max_duration, "task.max_duration", Number.MIN_VALUE);
+      if (t.reject_oor !== undefined) out.task.reject_unreachable = presetBoolean(t.reject_oor, "task.reject_oor");
+    }
+    if (p.rl !== undefined) {
+      const r = presetObject(p.rl, "rl"), fields = {
+        steps: "Number of Total Training Steps", envs: "Number of Parallel Environments", unroll: "Unroll Length",
+        minibatches: "Number of Minibatches", epochs: "Number of Epochs Per Update", ckpt: "Checkpoint Interval (in Number of Training Iterations)", seed: "Target Initial Seed",
+      };
+      for (const [key, label] of Object.entries(fields)) {
+        let v = r[label] === undefined ? (key === "steps" ? r["Number of Training Steps"] : undefined) : r[label];
+        // Older Studio selects saved parallel environment counts as decimal strings.
+        if (key === "envs" && typeof v === "string" && /^\d+$/.test(v)) v = Number(v);
+        if (v !== undefined) out.rl[key] = presetNumber(v, `rl.${label}`, ["steps", "seed"].includes(key) ? 0 : 1, true, key === "seed" ? 4294967295 : Infinity);
+      }
+    }
+    if (p.reward !== undefined) {
+      const r = presetObject(p.reward, "reward");
+      for (const key of Object.keys(out.reward)) if (r[key] !== undefined) out.reward[key] = presetNumber(r[key], `reward.${key}`);
+    }
+    if (p.extra_overrides !== undefined && !Array.isArray(p.extra_overrides)) throw new Error("extra_overrides must be an array of text");
+    for (const [i, override] of (p.extra_overrides ?? []).entries()) {
+      const o = presetText(override, `extra_overrides[${i}]`), m = o.match(/^(?:\+\+?)?env\.task_config\.weighted_reward_keys\.(\w+)=([-+\d.eE]+)$/);
+      if (m && EXTRA_REWARDS.includes(m[1])) out.reward[m[1]] = presetNumber(Number(m[2]), `extra_overrides[${i}]`);
+    }
+    if (p.obs !== undefined) {
+      const obs = presetObject(p.obs, "obs");
+      for (const [key, group] of [["qpos", "body"], ["qvel", "fatigue"], ["qacc", "vision"], ["ee_pos", "task"]]) {
+        if (obs[key] === undefined) continue;
+        if (!Array.isArray(obs[key]) || obs[key].length > OBS[group].length) throw new Error(`obs.${key} must be an array of at most ${OBS[group].length} booleans`);
+        obs[key].forEach((v, i) => { out.obs[OBS[group][i][0]] = presetBoolean(v, `obs.${key}[${i}]`); });
+      }
+    }
+    if (p.num_targets !== undefined || p.target_1 !== undefined) {
+      const n = presetNumber(p.num_targets === undefined ? 1 : p.num_targets, "num_targets", 1, true);
+      out.targets = [];
+      for (let i = 0; i < n; i++) {
+        const path = `target_${i + 1}`, t = presetObject(p[path], path);
+        if (!["Sphere", "Box", "Button"].includes(t.radio)) throw new Error(`${path}.radio must be Sphere, Box or Button`);
+        const isBox = t.radio !== "Sphere", sp = t.sphere === undefined ? {} : presetObject(t.sphere, `${path}.sphere`), bx = t.box === undefined ? {} : presetObject(t.box, `${path}.box`);
+        out.targets.push(normalizeTarget({
+          type: isBox ? "Button" : "Sphere", x: isBox ? bx.box_position_x : sp.x_range,
+          y: isBox ? bx.box_position_y : sp.y_range, z: isBox ? bx.box_position_z : sp.z_range,
+          size: sp.size_range, dwell: sp.dwell_duration, force: bx.min_touch_force, angle: bx.orientation_angle,
+          ...(isBox && bx.box_size_x !== undefined ? { bw: presetRange(bx.box_size_x, `${path}.box.box_size_x`, true)[0] } : {}),
+          ...(isBox && bx.box_size_y !== undefined ? { bh: presetRange(bx.box_size_y, `${path}.box.box_size_y`, true)[0] } : {}),
+          ...(isBox && bx.box_thickness !== undefined ? { bt: bx.box_thickness } : {}), ...(isBox && bx.quat !== undefined ? { quat: bx.quat } : {}),
+          color: isBox ? bx.rgb : sp.rgb,
+        }, path, i));
+      }
+    }
+    return out;
+  }
+  function fromPreset(p) {
+    const parsed = normalizePreset(p);
+    Object.assign(S, parsed, { screen: null, sel: null, row: null, importError: null });
+  }
+  function hexToRgba(hex) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},1)`; }
+  function rgbaToHex(s) {
+    if (typeof s !== "string") return null;
+    if (/^#[0-9a-f]{6}$/i.test(s)) return s.toLowerCase();
+    const m = s.match(/^(rgb|rgba)\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$/);
+    if (!m || (m[1] === "rgba") !== (m[5] !== undefined)) return null;
+    const channels = m.slice(2, 5).map(Number), alpha = m[5] === undefined ? 1 : Number(m[5]);
+    if (channels.some((v) => !Number.isFinite(v) || v < 0 || v > 255) || !Number.isFinite(alpha) || alpha < 0 || alpha > 1) return null;
+    return "#" + channels.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+  }
+
+  // The Gradio task builder takes at most 15 targets; Studio and the command line take any number.
+  const GRADIO_MAX_TARGETS = 15;
+  const gradioWarning = () => (liveTargets().length > GRADIO_MAX_TARGETS
+    ? `This setup has ${liveTargets().length} targets. The Gradio task builder takes at most ${GRADIO_MAX_TARGETS}, so the configuration and its checkpoints will not open there; Studio and the command line take any number.` : "");
+  function renderSummary() {
+    const warn = gradioWarning();
+    $("cfg-warn").hidden = !warn;
+    $("cfg-warn").textContent = warn;
+    $("cfg-note").hidden = !!warn;
+    const m = MODELS.find((x) => x.id === S.bm.bm_model);
+    const obsOn = Object.entries(S.obs).filter(([, v]) => v).map(([k]) => k);
+    const rw = Object.entries(S.reward).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${v}`);
+    const rows = [
+      ["Body", m ? m.name : S.bm.bm_model], ["Control step", S.bm.ctrl_dt + " s"],
+      ["Noise", [S.bm.sigdepnoise_enabled && "signal-dep.", S.bm.constantnoise_enabled && "constant"].filter(Boolean).join(", ") || "none"],
+      ["Fatigue", S.bm.fatigue_enabled ? "on" : "off"],
+      ["Targets", liveTargets().map((t) => t.type).join(", ")], ["Episode", S.task.max_duration + " s"],
+      ["Observations", obsOn.length + " signals"], ["Reward", rw.join(", ") || "none"],
+      ["Budget", fmt(S.rl.steps) + " steps · " + S.rl.envs + " envs"],
+      ...(wandbOn() ? [["W&B", wandbTarget()]] : []),
+    ];
+    $("summary-kv").innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("");
+    if (document.activeElement !== $("preset-name")) $("preset-name").value = S.preset;
+    $("preset-name").title = S.imported ? "From your link · click to rename" : "Click to rename this setup";
+    $("cfg-msg").textContent = S.importError || "";
+    $("cfg-json").textContent = JSON.stringify(toPreset(), null, 1).slice(0, 4000);
+    saveDraft();
+    const t = TARGETS[S.target];
+    $("est-target").textContent = S.target;
+    if (t.speed) {
+      const sec = S.rl.steps / (t.speed * Math.min(1, S.rl.envs / 4096) ** 0.5) + 60;
+      $("est-time").textContent = sec < 3600 ? `≈ ${Math.round(sec / 60)} min` : `≈ ${(sec / 3600).toFixed(1)} h`;
+      $("est-note").textContent = `Rough estimate from ${t.key === "hf" ? "the throughput of a T4 Space" : "measured throughput"} (${fmt(t.speed)} steps/s at 4096 envs), plus a minute of start-up.`;
+    } else {
+      $("est-time").textContent = "short runs";
+      $("est-note").textContent = "No throughput is known for this backend.";
+    }
+  }
+
+  /* ---------------------------------------------------------------- connect */
+  /* ---------------------------------------------------------------- handoff to a local Studio */
+  // A setup made on a hosted copy of this page opens in the local Studio through a link whose
+  // "#setup=" fragment carries it (fragments never reach a server); the local page imports it.
+  const b64url = (text) => { const bytes = new TextEncoder().encode(text); let bin = ""; for (const b of bytes) bin += String.fromCharCode(b); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
+  const unb64url = (text) => { const bin = atob(text.replace(/-/g, "+").replace(/_/g, "/")); return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))); };
+  const setupPayload = () => JSON.stringify({ preset: toPreset(), name: S.preset, step: S.step });
+  function handoffUrl(base) {
+    const root = (base || "http://localhost:8000").replace(/\/$/, "");
+    return `${root}/#setup=${b64url(setupPayload())}`;
+  }
+  function importSetupFromHash() {
+    if (!location.hash.startsWith("#setup=")) return false;
+    try {
+      const data = presetObject(JSON.parse(unb64url(location.hash.slice(7))), "setup"), parsed = normalizePreset(data.preset);
+      const name = data.name === undefined ? "untitled" : presetText(data.name, "setup.name");
+      const step = data.step === undefined ? 0 : presetNumber(data.step, "setup.step", 0, true, STEPS.length - 1);
+      Object.assign(S, parsed, { preset: name, step, imported: true, importError: null, screen: null, sel: null, row: null });
+    } catch (e) { S.importError = "The setup in this link could not be read: " + e.message; }
+    history.replaceState(null, "", location.pathname + location.search);
+    return true;
+  }
+  // The screen (its image included) is kept with the draft; if it does not fit the browser's storage, the setup alone is.
+  function saveDraft() {
+    const draft = JSON.parse(setupPayload());
+    try { localStorage.setItem("studio-draft", JSON.stringify({ ...draft, screen: S.screen, targets: S.targets })); }
+    catch (e) { try { localStorage.setItem("studio-draft", JSON.stringify({ ...draft, targets: S.targets })); } catch (e2) {} }
+  }
+  function restoreDraft() {
+    try {
+      const raw = localStorage.getItem("studio-draft");
+      if (!raw) return;
+      const data = presetObject(JSON.parse(raw), "draft"), parsed = normalizePreset(data.preset);
+      const name = data.name === undefined ? "untitled" : presetText(data.name, "draft.name");
+      const screen = data.screen === undefined || data.screen === null ? null : normalizeScreen(data.screen);
+      // the list as it was edited: targets that are switched off and those pinned to a screen included
+      if (data.targets !== undefined) {
+        if (!Array.isArray(data.targets) || !data.targets.length) throw new Error("draft.targets must be a nonempty array");
+        const targets = data.targets.map((t, i) => normalizeTarget(t, `draft.targets[${i}]`, i));
+        if (targets.filter((t) => !t.disabled).length !== parsed.targets.length) throw new Error("draft.targets does not match the preset's active target count");
+        parsed.targets = targets;
+      }
+      parsed.targets.forEach((t) => {
+        if (!screen) delete t.screenEl;
+        else if (t.screenEl !== undefined && t.screenEl >= screen.elements.length) throw new Error("draft target refers to a missing screen element");
+      });
+      Object.assign(S, parsed, { preset: name, screen, importError: null, sel: null, row: null });
+    } catch (e) { S.importError = "The saved draft could not be restored: " + e.message; }
+  }
+  function openConnect() {
+    const dlg = $("connect-dialog"), cards = $("conn-cards");
+    $("handoff").hidden = !!S.backend;
+    const updateHandoff = () => {
+      const base = ($("backend-url").value || $("backend-url").placeholder).replace(/\/$/, "");
+      const a = $("handoff-link");
+      a.href = handoffUrl(base);
+      a.textContent = `Open ${base.replace(/^https?:\/\//, "")} with this setup`;
+    };
+    $("backend-url").oninput = updateHandoff;
+    cards.innerHTML = "";
+    let pick = usable(S.target) ? S.target : "Google Colab";
+    $("conn-mobile").hidden = !MOBILE;
+    $("conn-mobile").textContent = MOBILE_NOTE;
+    const show = () => {
+      cards.querySelectorAll(".card").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.name === pick)));
+      $("conn-cmd").textContent = TARGETS[pick].cmd;
+      $("conn-hint").textContent = TARGETS[pick].note;
+      $("backend-url").placeholder = pick === "My GPU machine" ? "http://localhost:8000" : "https://…";
+      updateHandoff();
+    };
+    for (const [name] of targetOrder()) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "card"; b.dataset.name = name;
+      b.innerHTML = `<b>${name}</b>`;
+      b.disabled = !usable(name);
+      if (b.disabled) b.title = "Needs a computer with an NVIDIA GPU";
+      b.addEventListener("click", () => { pick = name; show(); });
+      cards.append(b);
+    }
+    show();
+    $("conn-status").textContent = "";
+    // A pairing code changes with every server start: offer only the one of the server connected now.
+    $("pair-code").value = S.backend && S.backend === ($("backend-url").value || $("backend-url").placeholder).replace(/\/$/, "") ? S.token || "" : "";
+    $("conn-go").onclick = async () => {
+      const url = ($("backend-url").value || $("backend-url").placeholder).replace(/\/$/, "");
+      const code = $("pair-code").value.trim();
+      $("conn-status").textContent = `Checking ${url} … If your browser asks whether this site may access apps or devices on your computer (local network), choose Allow.`;
+      const info = await probeBackend(url, code);
+      if (!info) {
+        $("conn-status").textContent = `No Studio server answered at ${url} (${probeError || "no answer"}). Check that myo_studio serve runs and that this address opens in a new tab (it shows {"ok": true, ...}). If your browser blocked access to apps on this device, allow it in the site settings (local network access) and try again. `
+            + (isSafari ? `Safari only reaches a server started with "myo_studio serve --https": open its https address once to trust the certificate, then connect to it here. ` : "")
+            + "Or continue on your machine below.";
+        return;
+      }
+      if (info.pairing) {
+        $("conn-status").textContent = code ? "That pairing code does not match: copy it again from the terminal where myo_studio serve runs." : "Enter the pairing code that myo_studio serve printed in its terminal.";
+        $("pair-code").focus();
+        return;
+      }
+      S.target = pick;
+      connectTo(url, code, `${pick} · ${info.device || "connected"}`);
+      dlg.close(); render();
+    };
+    dlg.showModal();
+  }
+
+  // Browsers may first ask whether this site may reach apps on this device (local network access);
+  // the request waits for that answer, so allow up to a minute. The last error is kept for the message.
+  let probeError = "";
+  async function probeBackend(url, code, timeoutMs = 60000) {
+    probeError = "";
+    try {
+      const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), timeoutMs);
+      const r = await fetch(url + "/api/health", { signal: ctl.signal, headers: code ? { "X-Studio-Token": code } : {} });
+      clearTimeout(timer);
+      if (!r.ok) probeError = `HTTP ${r.status}`;
+      return r.ok ? await r.json() : null;
+    } catch (e) { probeError = e.name === "AbortError" ? "no answer within a minute" : e.message || String(e); return null; }
+  }
+  const isSafari = /^((?!chrome|chromium|crios|fxios|edg|android).)*safari/i.test(navigator.userAgent);
+  function connectTo(url, code, label) {
+    S.token = code || null;
+    try { localStorage.setItem(pairKey(url), code || ""); localStorage.setItem("studio-last-backend", url); } catch (e) {}
+    setConnected(url, label);
+    S.runsFetchedAt = 0;
+    sceneKeys.targets = null;  // reload the scene from the server
+  }
+
+  /* ---------------------------------------------------------------- wire up */
+  $("connect-btn").addEventListener("click", openConnect);
+  // "Connect compute" in the step panels opens the same dialog
+  document.addEventListener("click", (ev) => { if (ev.target.closest("[data-connect]")) { ev.preventDefault(); openConnect(); } });
+  document.querySelectorAll("[data-cite]").forEach((b) => b.addEventListener("click", () => { $("cite-copy").textContent = "Copy BibTeX"; $("cite-dialog").showModal(); }));
+  $("cite-copy").addEventListener("click", () => {
+    navigator.clipboard.writeText($("cite-bib").textContent).then(() => { $("cite-copy").textContent = "Copied"; }, () => { $("cite-copy").textContent = "Select the text to copy it"; });
+  });
+  $("handoff-copy").addEventListener("click", (ev) => {
+    navigator.clipboard.writeText(JSON.stringify(toPreset(), null, 2)).then(() => { ev.target.textContent = gradioWarning() ? "Copied (not for the Gradio UI)" : "Copied"; setTimeout(() => (ev.target.textContent = "Copy setup"), gradioWarning() ? 4000 : 1500); }).catch(() => { $("conn-status").textContent = "Copying is blocked here: use Copy next to Configuration instead."; });
+  });
+  $("summary-toggle").innerHTML = foldIcon(true);
+  $("summary-toggle").addEventListener("click", (ev) => {
+    const closed = $("summary").classList.toggle("closed"), b = ev.currentTarget;
+    b.innerHTML = foldIcon(!closed);
+    b.title = closed ? "Unfold" : "Fold";
+    b.setAttribute("aria-expanded", String(!closed));
+    sceneFocus();
+    try { localStorage.setItem("studio-summary-closed", closed ? "1" : ""); } catch (e) {}
+  });
+  // The summary starts minimised on narrow screens, where it sits below the step panel.
+  try { if (localStorage.getItem("studio-summary-closed") ?? (matchMedia("(max-width: 1100px)").matches ? "1" : "")) $("summary-toggle").click(); } catch (e) {}
+  // Save configuration: the setup as <name>.json, the preset format the backend, the Gradio UI and myo_train read.
+  function saveConfiguration() {
+    const blob = new Blob([JSON.stringify(toPreset(), null, 2) + "\n"], { type: "application/json" });
+    const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `${S.preset === "untitled" ? "myointeract-setup" : S.preset}.json` });
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  }
+  document.addEventListener("click", (ev) => { if (ev.target.closest("[data-save-cfg]")) saveConfiguration(); });
+  $("import-cfg").addEventListener("change", async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    try { fromPreset(JSON.parse(await f.text())); S.preset = f.name.replace(/\.json$/, ""); $("cfg-msg").textContent = ""; render(); }
+    catch (e) { S.importError = "Could not read " + f.name + ": " + e.message; $("cfg-msg").textContent = S.importError; }
+    finally { ev.target.value = ""; }
+  });
+  // Loads the pointing task example (its preset: body, target, sensing, reward, budget) and opens the Task step.
+  /* ---------------------------------------------------------------- walkthrough */
+  // Annotation cards over the studio, one per step and for the panels around it. Each card may open a
+  // step first, then rings the element it explains; Back / Next / Skip (Esc) move through them.
+  const TOUR = [
+    { el: "#stepper", title: "Seven steps", text: "Studio takes a task from the body model to an evaluated policy. Go through the steps in order or jump between them; my setup stays in this browser." },
+    { step: 0, el: "#workspace", title: "1 · Body", text: "Pick the biomechanical user model: MyoArm or MoBL, with or without hand. Muscles, not motors, move every joint." },
+    { step: 1, el: "#workspace", title: "2 · Task", text: "Place targets: spheres to point at, buttons to press. Every episode draws each target's position and size from its ranges; several targets make a sequence. A Figma frame or an image can serve as the screen." },
+    { step: 1, el: "#stage", title: "The 3D view", text: "Drag targets and their regions here, switch the camera, show reach and muscles. \"Play example policy\" runs a trained policy on my target ranges, right in the browser." },
+    { step: 1, el: "#scene-bar", title: "What the 3D view shows", text: "The bar names it first: Task setup (static rest posture), Example policy (a trained policy on my targets), Evaluation (an example on its task) or Live (a run on the backend), with Play, Pause and Stop beside it." },
+    { step: 2, el: "#workspace", title: "3 · Sensing", text: "What the agent observes: joint angles and velocities, muscle states, the targets, optionally vision. Fewer signals usually train faster." },
+    { step: 3, el: "#workspace", title: "4 · Reward", text: "The trade-off the agent learns: distance drives learning, bonuses make it finish, effort and other penalties shape how it moves." },
+    { step: 4, el: "#workspace", title: "5 · Training", text: "The training budget and where it runs: my GPU machine (this computer or a lab server over SSH), Google Colab or a Hugging Face Space. Runs can log to Weights & Biases as well." },
+    { el: "#connect-btn", title: "Connect compute", text: "Without a backend, Studio is a demo. Start myo_studio serve on a GPU machine and pair this page with it: training, evaluation and live views then run there." },
+    { step: 5, el: "#workspace", title: "6 · Run", text: "Start training and follow it: click success rate, reward or episode length to plot that curve. The 3D view follows the newest checkpoint while it trains." },
+    { step: 6, el: "#workspace", title: "7 · Evaluate", text: "The deterministic policy on fresh episodes: success, time, effort, fatigue and which targets were reached. The example policies play live in the browser." },
+    { step: 6, el: "#mcard", title: "Muscles and joints", text: "While a policy plays: the busiest muscles, live and per episode; the arrows switch to the joints that move most, each angle between its limits. The 3D muscles light up with their activation." },
+    { el: "#summary", title: "Config overview", text: "Everything in one JSON file: save it, upload it later, or train from it with myo_train --config, outside Studio." },
+    { title: "That's Studio", text: "Start from the pointing example or design a task from scratch. The paper behind it is linked at the top (Cite for the BibTeX).", end: true },
+  ];
+  let tour = null;
+  function tourShow(i) {
+    if (!tour) {
+      tour = { ring: document.createElement("div"), card: document.createElement("div"), i: 0, from: S.step };
+      tour.ring.className = "tour-ring";
+      tour.card.className = "tour-card";
+      tour.card.setAttribute("role", "dialog");
+      tour.card.setAttribute("aria-live", "polite");
+      document.body.append(tour.ring, tour.card);
+      tour.card.addEventListener("click", (ev) => {
+        const b = ev.target.closest("[data-tour]");
+        if (!b) return;
+        const a = b.dataset.tour;
+        if (a === "close") tourEnd();
+        else if (a === "try") { tourEnd(false); $("hero-preset").click(); }
+        else tourShow(tour.i + (a === "next" ? 1 : -1));
+      });
+      addEventListener("resize", tourPlace);
+      addEventListener("scroll", tourPlace, true);
+      addEventListener("keydown", tourKey);
+    }
+    // skip cards whose element is not on the page (e.g. no muscle card before a policy plays)
+    const dir = i >= tour.i ? 1 : -1;
+    while (i > 0 && i < TOUR.length - 1 && TOUR[i].el === "#mcard" && $("mcard").hidden) i += dir;
+    tour.i = Math.max(0, Math.min(TOUR.length - 1, i));
+    const c = TOUR[tour.i];
+    if (c.step != null) { if (!S.stepOpen) setStepOpen(true); if (S.step !== c.step) go(c.step); }
+    else if (c.el) document.getElementById("studio").scrollIntoView({ block: "start" });
+    // the example plays on the evaluation cards only
+    const playing = c.step === 6;
+    if (!playing && (S.sim || S.replay) && !S.paused) { S.paused = true; renderSceneBar(); }
+    else if (playing && S.paused) { S.paused = false; renderSceneBar(); }
+    // an element outside the screen (e.g. the nav on a phone, which scrolls away) is brought into view
+    const target = c.el && document.querySelector(c.el), tr = target && target.getBoundingClientRect();
+    if (tr && tr.width && (tr.bottom < 0 || tr.top > innerHeight)) target.scrollIntoView({ block: "nearest" });
+    tour.card.innerHTML = `<div class="tour-count">${tour.i + 1} / ${TOUR.length}</div><h3>${c.title}</h3><p>${c.text}</p>
+      <div class="tour-actions">${c.end ? `<button class="btn" type="button" data-tour="close">Close</button><button class="btn primary" type="button" data-tour="try">Try the pointing example</button>`
+        : `<button class="link-btn" type="button" data-tour="close">Skip</button><span></span>${tour.i ? `<button class="btn" type="button" data-tour="back">Back</button>` : ""}<button class="btn primary" type="button" data-tour="next">Next</button>`}</div>`;
+    requestAnimationFrame(tourPlace);
+    tour.card.querySelector(".btn.primary").focus({ preventScroll: true });
+  }
+  // Ring the card's element and place the card where it hides the least: never over the element it
+  // explains, the nav, the step buttons or the 3D view's bar if any spot avoids them, always on screen.
+  function tourPlace() {
+    if (!tour) return;
+    const c = TOUR[tour.i], el = c.el && document.querySelector(c.el), card = tour.card, pad = 6, gap = 12, m = 8;
+    const r = el && !el.hidden ? el.getBoundingClientRect() : null;
+    const vw = innerWidth, vh = innerHeight, cw = card.offsetWidth, ch = card.offsetHeight;
+    // a card without an element (the last one) is placed like the others, around the screen's centre
+    const has = !!(r && r.width);
+    const top = has ? Math.max(r.top, 0) : vh / 2, bottom = has ? Math.min(r.bottom, vh) : vh / 2;
+    const left = has ? Math.max(r.left, 0) : vw / 2, right = has ? Math.min(r.right, vw) : vw / 2;
+    tour.ring.style.cssText = has ? `left:${left - pad}px;top:${top - pad}px;width:${right - left + 2 * pad}px;height:${Math.max(0, bottom - top) + 2 * pad}px` : "left:50%;top:50%;width:0;height:0;border-width:0";
+    const box = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+    const area = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t));
+    // what the card must not hide: the controls a user needs next, then the explained element; panels count least
+    const target = { l: left - pad, t: top - pad, r: right + pad, b: bottom + pad };
+    const avoid = [[".nav", 50], ["#stepper", 50], ["#scene-bar", 50], ["#connect-btn", 50], ["#workspace", 2], ["#summary", 2], ["#mcard", 2]]
+      .flatMap(([q, w]) => { const e = document.querySelector(q); return e && !e.hidden && e !== el && !e.contains(el) && e.offsetParent !== null ? [[box(e), w]] : []; });
+    const navB = document.querySelector(".nav")?.getBoundingClientRect().bottom || 0;
+    const cx = (left + right) / 2 - cw / 2, cy = (top + bottom) / 2 - ch / 2;
+    const spots = [
+      [right + gap, top], [right + gap, cy], [left - cw - gap, top], [left - cw - gap, cy],
+      [left, bottom + gap], [cx, bottom + gap], [left, top - ch - gap], [cx, top - ch - gap],
+      [m, navB + m], [vw - cw - m, navB + m], [(vw - cw) / 2, navB + m], [m, vh - ch - m], [vw - cw - m, vh - ch - m], [(vw - cw) / 2, vh - ch - m],
+    ].map(([x, y]) => [Math.max(m, Math.min(vw - cw - m, x)), Math.max(navB + m, Math.min(vh - ch - m, y))]);
+    let best = null;
+    for (const [x, y] of spots) {
+      const b = { l: x, t: y, r: x + cw, b: y + ch };
+      // covering the explained element costs less than covering the controls (a big panel on a small phone)
+      const score = (has ? 20 * area(b, target) : 0) + avoid.reduce((sum, [a, w]) => sum + w * area(b, a), 0)
+        + Math.hypot(x + cw / 2 - (left + right) / 2, y + ch / 2 - (top + bottom) / 2) * 0.01;  // nearer is better
+      if (!best || score < best[0]) best = [score, x, y];
+    }
+    Object.assign(card.style, { left: `${best[1]}px`, top: `${best[2]}px` });
+  }
+  function tourKey(ev) {
+    if (!tour) return;
+    if (ev.key === "Escape") tourEnd();
+    else if (ev.key === "ArrowRight" && !TOUR[tour.i].end) tourShow(tour.i + 1);
+    else if (ev.key === "ArrowLeft" && tour.i) tourShow(tour.i - 1);
+  }
+  // back = return to the step the walkthrough started from (not when it hands over to the pointing example)
+  function tourEnd(back = true) {
+    if (!tour) return;
+    const from = tour.from;
+    tour.ring.remove(); tour.card.remove();
+    removeEventListener("resize", tourPlace); removeEventListener("scroll", tourPlace, true); removeEventListener("keydown", tourKey);
+    tour = null;
+    if (back && S.step !== from) go(from);
+  }
+  $("hero-tour").addEventListener("click", () => tourShow(0));
+  $("hero-preset").addEventListener("click", async (ev) => {
+    const label = ev.target.textContent;
+    ev.target.disabled = true;
+    try {
+      await openExampleTask("pointing");
+      S.exampleSel = "pointing";
+      const ex = simExample();  // the example policy for these targets, played in the browser
+      if (ex) { startSim(ex, 1); render(); }
+    }
+    catch (e) { ev.target.textContent = "The pointing example could not load"; setTimeout(() => { ev.target.textContent = label; }, 4000); }
+    ev.target.disabled = false;
+  });
+  function renderPresetList() {
+    $("preset-row").hidden = !S.backend;
+    $("preset-select").innerHTML = S.presets.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}${p.source === "user" ? " (mine)" : ""}</option>`).join("");
+  }
+  $("preset-load").addEventListener("click", async () => {
+    const name = $("preset-select").value;
+    try { fromPreset(await api("/api/presets/" + encodeURIComponent(name))); S.preset = name; $("preset-msg").textContent = ""; render(); } catch (e) { $("preset-msg").textContent = e.message; }
+  });
+  $("preset-save").addEventListener("click", async () => {
+    const name = prompt("Save this setup as (letters, digits, - and _):", S.preset === "untitled" ? "" : S.preset);
+    if (!name) return;
+    try { await api("/api/presets", { method: "POST", body: { name, preset: toPreset() } }); S.preset = name; S.presets = await api("/api/presets"); renderPresetList(); $("preset-msg").textContent = gradioWarning() ? "Saved. " + gradioWarning() : "Saved."; renderSummary(); } catch (e) { $("preset-msg").textContent = e.message; }
+  });
+  // The setup name is edited in place: letters, digits, - and _ (as presets on the backend are named).
+  $("preset-name").addEventListener("change", () => {
+    S.preset = $("preset-name").value.trim().replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "untitled";
+    renderSummary();
+  });
+  $("preset-name").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === "Escape") $("preset-name").blur(); });
+  const DEFAULT_SETUP = setupPayload();  // before any import or saved draft changes the state
+  function resetSetup() {
+    const d = JSON.parse(DEFAULT_SETUP);
+    fromPreset(d.preset);
+    Object.assign(S, { preset: "untitled", screen: null, sel: null, imported: false, importError: null, step: 0 });
+    try { localStorage.removeItem("studio-draft"); } catch (e) {}
+    render();
+  }
+  $("reset-setup").addEventListener("click", () => { $("reset-confirm").hidden = false; });
+  $("reset-no").addEventListener("click", () => { $("reset-confirm").hidden = true; });
+  $("reset-yes").addEventListener("click", () => { $("reset-confirm").hidden = true; resetSetup(); });
+  if (!importSetupFromHash()) restoreDraft();
+  render();
+  initScene();
+  // Served by the backend itself: connect without asking. A hosted copy reconnects only to a server it
+  // was paired with before (asking the browser for local network access is left to the Connect dialog).
+  (async () => {
+    const own = location.protocol.startsWith("http") ? await fetch("/api/health").then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+    if (own && own.ok && !own.pairing) { S.target = "My GPU machine"; setConnected(location.origin, `This machine · ${own.device}`); render(); return; }
+    let url = null, code = "";
+    try { url = localStorage.getItem("studio-last-backend"); code = url ? localStorage.getItem(pairKey(url)) || "" : ""; } catch (e) {}
+    if (!url) return;
+    const info = await probeBackend(url, code);
+    if (info && info.ok && !info.pairing) { connectTo(url, code, `${S.target} · ${info.device || "connected"}`); render(); }
+    else try { localStorage.removeItem(pairKey(url)); } catch (e) {}  // that server is gone or was restarted with a new code
+  })();
+})();
+</script>
+
+</body>
+</html>

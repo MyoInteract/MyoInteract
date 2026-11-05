@@ -1,0 +1,4 @@
+# Derived from https://github.com/Ingrim4/myo_user (MIT License, © Ingrim4)
+defaults:
+  - myo_config
+  - _self_

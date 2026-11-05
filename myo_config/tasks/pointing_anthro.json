@@ -1,0 +1,221 @@
+{
+  "env": {
+    "ctrl_dt": 0.05,
+    "env_name": "MyoInteractUniversal",
+    "eval_mode": false,
+    "mj_impl": "mjlab",
+    "model_path": "myo_user/envs/myo/assets/arm/mobl_arms_index_universal_myointeract.xml",
+    "muscle_config": {
+      "control_type": "default",
+      "dep_enabled": false,
+      "dep_stochastic_switch": true,
+      "fatigue_enabled": false,
+      "fatigue_obs_keys": [
+        "MR",
+        "MF"
+      ],
+      "fatigue_reset_random": false,
+      "fatigue_reset_vec": null,
+      "muscle_condition": null,
+      "noise_params": {
+        "constantnoise_level": 0.185,
+        "constantnoise_type": null,
+        "sigdepnoise_level": 0.103,
+        "sigdepnoise_type": null
+      },
+      "sex": null
+    },
+    "sim_dt": 0.002,
+    "task_config": {
+      "distance_metric": 10.0,
+      "enable_extra_dist": true,
+      "exponential_distance_reward": false,
+      "max_duration": 4.0,
+      "max_trials": 1,
+      "obs_keys": [
+        "qpos",
+        "qvel",
+        "qacc",
+        "ee_pos",
+        "act"
+      ],
+      "omni_keys": [],
+      "reach_settings": {
+        "ee_site": "fingertip",
+        "ref_site": "humphant",
+        "target_origin_rel": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "reset_type": "epsilon_uniform",
+      "show_all_targets": true,
+      "target_init_seed": 14,
+      "targets": {
+        "num_targets": 1,
+        "target_0": {
+          "completion_bonus": 0.0,
+          "dwell_duration": 0.5,
+          "name": "pointing_target",
+          "position": [
+            [
+              0.275,
+              -0.3,
+              -0.35
+            ],
+            [
+              0.525,
+              0.3,
+              0.15
+            ]
+          ],
+          "reward_incentive": 0.0,
+          "rgb": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "shape": "sphere",
+          "size": [
+            [
+              0.02,
+              0.02,
+              0.02
+            ],
+            [
+              0.05,
+              0.05,
+              0.05
+            ]
+          ],
+          "site_pos": [
+            0.0,
+            0.0,
+            0.01
+          ]
+        }
+      },
+      "weighted_reward_keys": {
+        "distance": 1.0,
+        "done": 10.0,
+        "jac_effort": 0.0,
+        "neural_effort": 0.0,
+        "phase_bonus": 10.0
+      }
+    },
+    "vision": {
+      "enabled": true,
+      "enabled_geom_groups": [
+        0,
+        1,
+        2
+      ],
+      "evaluation_cameras": [
+        0,
+        1
+      ],
+      "gpu_id": 0,
+      "num_eval_envs": 8,
+      "num_train_envs": 1024,
+      "observation_cameras": [
+        0
+      ],
+      "render_height": 96,
+      "render_width": 96,
+      "use_rasterizer": false,
+      "vision_mode": "rgb"
+    }
+  },
+  "rl": {
+    "action_repeat": 1,
+    "batch_size": 128,
+    "clipping_epsilon": 0.3,
+    "discounting": 0.97,
+    "entropy_cost": 0.001,
+    "episode_length": 80,
+    "learning_rate": 0.0003,
+    "load_checkpoint_path": "None",
+    "log_training_metrics": true,
+    "max_grad_norm": 1.0,
+    "network_factory": {
+      "cheat_vision_aux_output": false,
+      "encoder_out_size": 4,
+      "has_vision_aux_output": false,
+      "policy_hidden_layer_sizes": [
+        32,
+        32,
+        32,
+        32
+      ],
+      "stop_vision_gradient": false,
+      "value_hidden_layer_sizes": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "vision_aux_output_decoder": false,
+      "vision_aux_output_mlp": true,
+      "vision_aux_output_mlp_output_size": 4,
+      "vision_encoder_normalize_output": true
+    },
+    "normalize_observations": true,
+    "num_checkpoints": 1,
+    "num_envs": 1024,
+    "num_eval_envs": 5,
+    "num_evals": 1,
+    "num_minibatches": 8,
+    "num_resets_per_eval": 1,
+    "num_timesteps": 0,
+    "num_epochs_per_update": 8,
+    "reward_scaling": 0.1,
+    "save_interval": 1000,
+    "unroll_length": 10
+  },
+  "run": {
+    "deterministic_rscope": true,
+    "domain_randomization": false,
+    "eval_episodes": 10,
+    "eval_seed": 123,
+    "local_plotting": false,
+    "log_wandb_videos": true,
+    "play_only": false,
+    "rscope_envs": null,
+    "seed": 0,
+    "suffix": null,
+    "use_tb": false,
+    "using_gradio": true
+  },
+  "vision": {
+    "enabled": true,
+    "enabled_geom_groups": [
+      0,
+      1,
+      2
+    ],
+    "evaluation_cameras": [
+      0,
+      1
+    ],
+    "gpu_id": 0,
+    "num_eval_envs": 8,
+    "num_train_envs": 1024,
+    "observation_cameras": [
+      0
+    ],
+    "render_height": 96,
+    "render_width": 96,
+    "use_rasterizer": false,
+    "vision_mode": "rgb"
+  },
+  "wandb": {
+    "enabled": true,
+    "entity": null,
+    "group": null,
+    "name": "test-mjlab",
+    "project": "test",
+    "tags": null
+  }
+}

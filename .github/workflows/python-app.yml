@@ -1,0 +1,93 @@
+name: Python application
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  studio:
+    name: Studio (${{ matrix.os }}, Python ${{ matrix.python }}, MuJoCo ${{ matrix.mujoco }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: '3.13', mujoco: '3.11.0'}
+          - {os: ubuntu-latest, python: '3.13', mujoco: '3.12.0'}
+          - {os: ubuntu-latest, python: '3.13', mujoco: '3.13.0'}
+          - {os: ubuntu-latest, python: '3.13', mujoco: '3.14.0'}
+          - {os: ubuntu-latest, python: '3.13', mujoco: '3.15.0'}
+          - {os: ubuntu-latest, python: '3.13', mujoco: '3.16.0'}
+          - {os: ubuntu-latest, python: '3.13', mujoco: latest}
+          - {os: ubuntu-latest, python: '3.10', mujoco: latest}
+          - {os: windows-latest, python: '3.10', mujoco: '3.11.0'}
+          - {os: windows-latest, python: '3.13', mujoco: latest}
+    env:
+      MUJOCO_REQUIREMENT: ${{ matrix.mujoco == 'latest' && 'mujoco>=3.11,<4' || format('mujoco=={0}', matrix.mujoco) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v4
+      - name: Install CPU Studio without training extras
+        run: |
+          uv venv
+          uv pip install -e ".[studio]" "${{ env.MUJOCO_REQUIREMENT }}" pytest pytest-timeout build
+      - name: Project regressions (including real MuJoCo WASM)
+        run: |
+          .venv/bin/python -c "import mujoco; print('MuJoCo', mujoco.__version__)"
+          .venv/bin/python -c "import mujoco, numpy as np; e=mujoco.mjtGeom.mjGEOM_BOX; v=np.int32(int(e)); print('Enum/NumPy interop', {'enum_equal': bool(e == v), 'numpy_equal': bool(v == e), 'enum_key_lookup': v in {e: True}, 'int_key_lookup': v in {int(e): True}})"
+          .venv/bin/python -m pytest tests -q --timeout=180
+        if: runner.os != 'Windows'
+      - name: Project regressions on Windows
+        run: |
+          .venv/Scripts/python -c "import mujoco; print('MuJoCo', mujoco.__version__)"
+          .venv/Scripts/python -m pytest tests -q --timeout=180
+        if: runner.os == 'Windows'
+      - name: Build wheel from source distribution
+        if: runner.os == 'Linux' && matrix.python == '3.13' && matrix.mujoco == 'latest'
+        run: .venv/bin/python -m build
+      - name: Preview from an isolated wheel installation
+        if: runner.os == 'Linux' && matrix.python == '3.13' && matrix.mujoco == 'latest'
+        shell: bash
+        run: |
+          uv venv build/wheel-check
+          wheel=(dist/*.whl)
+          uv pip install --python build/wheel-check/bin/python "${wheel[0]}[studio]"
+          build/wheel-check/bin/python -I -c "import importlib.util, mujoco; from myoInteract.studio.scene import scene_for; print('Installed-wheel MuJoCo', mujoco.__version__); assert importlib.util.find_spec('torch') is None; assert len(scene_for('MyoArm_nohand')[1]) > 0"
+
+  native:
+    name: Native mjlab CPU contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # mjlab otherwise defaults child processes to EGL; these CPU tests do not render.
+      MUJOCO_GL: glfw
+      MYOINTERACT_LOGGER: tensorboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v4
+      - name: Install native CPU stack
+        run: |
+          uv venv
+          uv pip install -e ".[mjlab,studio]" --torch-backend cpu pytest pytest-timeout
+      - name: Exercise native task and learner contracts
+        run: |
+          .venv/bin/python -c "import mujoco, importlib.metadata as m; print({p: m.version(p) for p in ('mujoco', 'mujoco-warp', 'mjlab')})"
+          .venv/bin/python -m pytest tests -q --timeout=300
