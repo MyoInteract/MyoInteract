@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "parameters": {
+    "rl.num_timesteps": 7000000,
+    "rl.num_checkpoints": 1,
+    "rl.num_evals": 1,
+    "rl.batch_size": 128,
+    "rl.num_envs": 1024,
+    "rl.num_minibatches": 8,
+    "rl.checkpoint_run": "None",
+    "rl.checkpoint_number": "None",
+    "rl.target_init_seed": 29,
+    "task.num_targets": 5,
+    "targets.0.type": "Sphere",
+    "targets.1.type": "Sphere",
+    "targets.2.type": "Sphere",
+    "targets.3.type": "Sphere",
+    "targets.4.type": "Sphere",
+    "targets.5.type": "Sphere",
+    "targets.6.type": "Sphere",
+    "targets.7.type": "Sphere",
+    "targets.8.type": "Sphere",
+    "targets.9.type": "Sphere",
+    "boxes.0.position_x": 0.42,
+    "boxes.0.position_y": 0.02,
+    "boxes.0.position_z": 0.01,
+    "boxes.0.size_x": 0.05,
+    "boxes.0.size_y": 0.05,
+    "boxes.0.min_touch_force": 1,
+    "boxes.0.orientation_angle": 90,
+    "boxes.0.rgb": "rgba(204.0,25.5,25.5,1)",
+    "boxes.1.position_x": 0.42,
+    "boxes.1.position_y": 0.32,
+    "boxes.1.position_z": 0.01,
+    "boxes.1.size_x": 0.05,
+    "boxes.1.size_y": 0.05,
+    "boxes.1.min_touch_force": 1,
+    "boxes.1.orientation_angle": 90,
+    "boxes.1.rgb": "rgba(25.5,204.0,25.5,1)",
+    "boxes.2.position_x": 0.42,
+    "boxes.2.position_y": 0.02,
+    "boxes.2.position_z": -0.29,
+    "boxes.2.size_x": 0.05,
+    "boxes.2.size_y": 0.05,
+    "boxes.2.min_touch_force": 1,
+    "boxes.2.orientation_angle": 90,
+    "boxes.2.rgb": "rgba(25.5,25.5,204.0,1)",
+    "boxes.3.position_x": 0.42,
+    "boxes.3.position_y": 0.32,
+    "boxes.3.position_z": -0.29,
+    "boxes.3.size_x": 0.05,
+    "boxes.3.size_y": 0.05,
+    "boxes.3.min_touch_force": 1,
+    "boxes.3.orientation_angle": 90,
+    "boxes.3.rgb": "rgba(204.0,204.0,25.5,1)",
+    "boxes.4.position_x": 0.5,
+    "boxes.4.position_y": 0,
+    "boxes.4.position_z": -0.05,
+    "boxes.4.size_x": 0.025,
+    "boxes.4.size_y": 0.025,
+    "boxes.4.min_touch_force": 1,
+    "boxes.4.orientation_angle": 45,
+    "boxes.4.rgb": "rgba(102.0,102.0,102.0,1)",
+    "boxes.5.position_x": 0.5,
+    "boxes.5.position_y": 0.07,
+    "boxes.5.position_z": -0.05,
+    "boxes.5.size_x": 0.025,
+    "boxes.5.size_y": 0.025,
+    "boxes.5.min_touch_force": 1,
+    "boxes.5.orientation_angle": 45,
+    "boxes.5.rgb": "rgba(102.0,25.5,102.0,1)",
+    "boxes.6.position_x": 0.41,
+    "boxes.6.position_y": -0.07,
+    "boxes.6.position_z": 0.05,
+    "boxes.6.size_x": 0.025,
+    "boxes.6.size_y": 0.025,
+    "boxes.6.min_touch_force": 1,
+    "boxes.6.orientation_angle": 45,
+    "boxes.6.rgb": "rgba(25.5,102.0,102.0,1)",
+    "boxes.7.position_x": 0.41,
+    "boxes.7.position_y": 0.07,
+    "boxes.7.position_z": 0.05,
+    "boxes.7.size_x": 0.025,
+    "boxes.7.size_y": 0.025,
+    "boxes.7.min_touch_force": 1,
+    "boxes.7.orientation_angle": 45,
+    "boxes.7.rgb": "rgba(102.0,102.0,25.5,1)",
+    "boxes.8.position_x": 0.41,
+    "boxes.8.position_y": -0.07,
+    "boxes.8.position_z": -0.25,
+    "boxes.8.size_x": 0.025,
+    "boxes.8.size_y": 0.025,
+    "boxes.8.min_touch_force": 1,
+    "boxes.8.orientation_angle": 45,
+    "boxes.8.rgb": "rgba(25.5,25.5,25.5,1)",
+    "boxes.9.position_x": 0.41,
+    "boxes.9.position_y": 0,
+    "boxes.9.position_z": -0.25,
+    "boxes.9.size_x": 0.025,
+    "boxes.9.size_y": 0.025,
+    "boxes.9.min_touch_force": 1,
+    "boxes.9.orientation_angle": 45,
+    "boxes.9.rgb": "rgba(204.0,204.0,204.0,1)",
+    "spheres.0.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.0.y_range": [
+      -0.036,
+      0.036
+    ],
+    "spheres.0.z_range": [
+      -0.3,
+      -0.3
+    ],
+    "spheres.0.size_range": [
+      0.01,
+      0.01
+    ],
+    "spheres.0.dwell_duration": 0.05,
+    "spheres.0.rgb": "rgba(204.0,25.5,25.5,1)",
+    "spheres.1.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.1.y_range": [
+      -0.036,
+      0.036
+    ],
+    "spheres.1.z_range": [
+      -0.3,
+      -0.3
+    ],
+    "spheres.1.size_range": [
+      0.01,
+      0.01
+    ],
+    "spheres.1.dwell_duration": 0.05,
+    "spheres.1.rgb": "rgba(25.5,204.0,25.5,1)",
+    "spheres.2.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.2.y_range": [
+      -0.036,
+      0.036
+    ],
+    "spheres.2.z_range": [
+      -0.3,
+      -0.3
+    ],
+    "spheres.2.size_range": [
+      0.01,
+      0.01
+    ],
+    "spheres.2.dwell_duration": 0.05,
+    "spheres.2.rgb": "rgba(25.5,25.5,204.0,1)",
+    "spheres.3.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.3.y_range": [
+      -0.036,
+      0.036
+    ],
+    "spheres.3.z_range": [
+      -0.3,
+      -0.3
+    ],
+    "spheres.3.size_range": [
+      0.01,
+      0.01
+    ],
+    "spheres.3.dwell_duration": 0.05,
+    "spheres.3.rgb": "rgba(204.0,204.0,25.5,1)",
+    "spheres.4.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.4.y_range": [
+      -0.036,
+      0.036
+    ],
+    "spheres.4.z_range": [
+      -0.3,
+      -0.3
+    ],
+    "spheres.4.size_range": [
+      0.01,
+      0.01
+    ],
+    "spheres.4.dwell_duration": 0.05,
+    "spheres.4.rgb": "rgba(102.0,102.0,102.0,1)",
+    "spheres.5.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.5.y_range": [
+      -0.1,
+      0.1
+    ],
+    "spheres.5.z_range": [
+      -0.3,
+      0.3
+    ],
+    "spheres.5.size_range": [
+      0.05,
+      0.15
+    ],
+    "spheres.5.dwell_duration": 0.25,
+    "spheres.5.rgb": "rgba(102.0,25.5,102.0,1)",
+    "spheres.6.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.6.y_range": [
+      -0.1,
+      0.1
+    ],
+    "spheres.6.z_range": [
+      -0.3,
+      0.3
+    ],
+    "spheres.6.size_range": [
+      0.05,
+      0.15
+    ],
+    "spheres.6.dwell_duration": 0.25,
+    "spheres.6.rgb": "rgba(25.5,102.0,102.0,1)",
+    "spheres.7.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.7.y_range": [
+      -0.1,
+      0.1
+    ],
+    "spheres.7.z_range": [
+      -0.3,
+      0.3
+    ],
+    "spheres.7.size_range": [
+      0.05,
+      0.15
+    ],
+    "spheres.7.dwell_duration": 0.25,
+    "spheres.7.rgb": "rgba(102.0,102.0,25.5,1)",
+    "spheres.8.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.8.y_range": [
+      -0.1,
+      0.1
+    ],
+    "spheres.8.z_range": [
+      -0.3,
+      0.3
+    ],
+    "spheres.8.size_range": [
+      0.05,
+      0.15
+    ],
+    "spheres.8.dwell_duration": 0.25,
+    "spheres.8.rgb": "rgba(25.5,25.5,25.5,1)",
+    "spheres.9.x_range": [
+      0.225,
+      0.375
+    ],
+    "spheres.9.y_range": [
+      -0.1,
+      0.1
+    ],
+    "spheres.9.z_range": [
+      -0.3,
+      0.3
+    ],
+    "spheres.9.size_range": [
+      0.05,
+      0.15
+    ],
+    "spheres.9.dwell_duration": 0.25,
+    "spheres.9.rgb": "rgba(204.0,204.0,204.0,1)",
+    "biomechanics.ctrl_dt": 0.05,
+    "biomechanics.reset_type": "range_uniform",
+    "biomechanics.sigdepnoise_enabled": false,
+    "biomechanics.constantnoise_enabled": false,
+    "task.max_duration": 4,
+    "observations.qpos": true,
+    "observations.qvel": true,
+    "observations.qacc": true,
+    "observations.ee_pos": true,
+    "observations.act": true,
+    "observations.target_pos": true,
+    "observations.target_size": true,
+    "observations.phase": true,
+    "observations.dwell_fraction": true,
+    "rewards.distance": 1,
+    "rewards.subtask_bonus": 0,
+    "rewards.completion_bonus": 10,
+    "rewards.neural_effort": 0
+  }
+}

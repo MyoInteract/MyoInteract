@@ -15,9 +15,10 @@
 """Train a PPO agent using JAX on the specified environment."""
 
 import os
-os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
+import sys
+os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
-from datetime import datetime
+from datetime import datetime, timezone
 import warnings
 import pickle
 import h5py
@@ -27,10 +28,14 @@ import jax
 from absl import app
 from absl import flags
 from absl import logging
-from myosuite.train.utils.train import train_or_load_checkpoint
+from myosuite.train.utils.train import resolve_checkpoint_path, train_or_load_checkpoint
 from myosuite.train.utils.wrapper import _maybe_wrap_env_for_evaluation
 from myosuite.envs.myo.myouser.evaluate import evaluate_policy
 from myosuite.envs.myo.myouser.utils import render_traj, ProgressLogger, set_global_seed
+from myosuite.envs.myo.myouser.paths import get_logs_dir
+from myosuite.envs.myo.myouser.presets import validate_preset_name
+from myosuite.envs.myo.myouser.validation import validate_training_config
+from myosuite.utils.run_manifest import create_run_manifest, write_run_manifest
 from etils import epath
 import jax
 import jax.numpy as jp
@@ -49,10 +54,10 @@ from omegaconf import OmegaConf
 from ml_collections.config_dict import ConfigDict
 
 
-os.environ["MUJOCO_GL"] = "egl"
+os.environ.setdefault("MUJOCO_GL", "egl" if sys.platform.startswith("linux") else "glfw")
 xla_flags = os.environ.get('XLA_FLAGS', '')
-xla_flags += ' --xla_gpu_triton_gemm_any=True'
-os.environ['XLA_FLAGS'] = xla_flags
+if '--xla_gpu_triton_gemm_any' not in xla_flags:
+  os.environ['XLA_FLAGS'] = xla_flags + ' --xla_gpu_triton_gemm_any=True'
 try:
   import madrona_mjx
   location = madrona_mjx.__file__.split('/src/')[0]
@@ -79,7 +84,10 @@ warnings.filterwarnings("ignore", category=UserWarning, module="absl")
 def train(cfg: Config):
   container = OmegaConf.to_container(cfg, throw_on_missing=True, resolve=True)
   container['env']['vision'] = container['vision']
+  validate_training_config(container)
   config = ConfigDict(container)
+  if config.rl.load_checkpoint_path not in (None, "None"):
+    config.rl.load_checkpoint_path = str(resolve_checkpoint_path(config.rl.load_checkpoint_path))
   print(f"Config: ", OmegaConf.to_yaml(container), sep='\n')
   """Run training and evaluation for the specified environment."""
 
@@ -103,14 +111,23 @@ def train(cfg: Config):
     exp_name = config.wandb.name
   print(f"Experiment name: {exp_name}")
   # Set up logging directory
-  logdir = epath.Path("logs").resolve() / exp_name
-  logdir.mkdir(parents=True, exist_ok=True)
+  validate_preset_name(exp_name)
+  logs_root = get_logs_dir()
+  logs_root.mkdir(parents=True, exist_ok=True)
+  logdir = epath.Path(logs_root) / exp_name
+  logdir.mkdir(exist_ok=False)
   print(f"Logs are being stored in: {logdir}")
 
   # Set number of training steps to 0 if play_only
-  if config.run.play_only:
+  if config.run.play_only or config.env.eval_mode:
     config.rl.num_timesteps = 0
     ##TODO: use config.env.eval_mode rather than config.run.play_only (-> config.run.eval_mode?)
+
+  manifest = create_run_manifest(
+      config, checkpoint_path=config.rl.load_checkpoint_path,
+      backend=jax.default_backend(), devices=jax.devices(),
+  )
+  write_run_manifest(logdir, manifest)
 
   # Initialize Weights & Biases if required
   if config.wandb.enabled and not config.run.play_only:
@@ -172,7 +189,7 @@ def train(cfg: Config):
   print("Starting inference...")
 
   # Prepare evaluation episodes
-  n_episode_runs = 1
+  n_episode_runs = config.run.eval_episodes
     
   env, n_randomizations = _maybe_wrap_env_for_evaluation(eval_env=env, seed=config.run.eval_seed)
   if n_randomizations is not None:
@@ -180,7 +197,7 @@ def train(cfg: Config):
       n_episodes = n_episode_runs * n_randomizations
       logging.info(f"Environment requires a multiple of {n_randomizations} evaluation episodes. Will run {n_episodes} in total.")
   else:
-    n_episodes = n_episode_runs * 20
+    n_episodes = n_episode_runs
   
   # Jit required functions
   inference_fn = make_inference_fn(params, deterministic=True)
@@ -251,6 +268,13 @@ def train(cfg: Config):
   print("Rollout video saved as 'rollout_1.mp4'.")
   if config.wandb.enabled and not config.run.play_only:
     wandb.log({'final_policy/side_view': wandb.Video(str(logdir / "rollout_1.mp4"), format="mp4")})  #, fps=fps)})
+
+  manifest["status"] = "completed"
+  manifest["completed_at"] = datetime.now(timezone.utc).isoformat()
+  write_run_manifest(logdir, manifest)
+  if writer is not None:
+    writer.close()
+  return logdir
   
 
 
