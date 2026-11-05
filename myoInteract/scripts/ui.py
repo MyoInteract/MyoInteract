@@ -31,6 +31,8 @@ if gr.NO_RELOAD:
         load_config_interactive,
         training_config_to_labelled_dict,
         extra_hydra_overrides,
+        button_geometry,
+        restore_button_geometry,
     )
     from myoInteract.register_mjlab_myointeract_tasks import (
         _universal_spec_fn,
@@ -1093,7 +1095,7 @@ class BoxParameters:
         return sanity_check
 
     @classmethod
-    def parse_values(cls, i, all_args):
+    def parse_values(cls, i, all_args, stored_geometry=None):
         (
             box_position_x,
             box_position_y,
@@ -1122,19 +1124,21 @@ class BoxParameters:
         )
         if not sanity_check:
             return False, []
+        geometry = restore_button_geometry(
+            {"orientation_angle": orientation_angle}, stored_geometry or {}
+        )
+        euler, half_depth = button_geometry(geometry)
         overrides = []
         overrides.append(
             f"env.task_config.targets.target_{i}.position=[[{box_position_x[0]},{box_position_y[0]},{box_position_z[0]}],[{box_position_x[1]},{box_position_y[1]},{box_position_z[1]}]]"
         )
         overrides.append(
-            f"env.task_config.targets.target_{i}.size=[[{0.5*box_size_x_slider[0]},{0.5*box_size_y_slider[0]},0.01],[{0.5*box_size_x_slider[1]},{0.5*box_size_y_slider[1]},0.01]]"
+            f"env.task_config.targets.target_{i}.size=[[{0.5*box_size_x_slider[0]},{0.5*box_size_y_slider[0]},{half_depth[0]}],[{0.5*box_size_x_slider[1]},{0.5*box_size_y_slider[1]},{half_depth[1]}]]"
         )
         overrides.append(
             f"env.task_config.targets.target_{i}.min_touch_force={min_touch_force}"
         )
-        overrides.append(
-            f"env.task_config.targets.target_{i}.euler=[0,{-orientation_angle*np.pi/180},0]"
-        )
+        overrides.append(f"env.task_config.targets.target_{i}.euler={euler}")
         overrides.append(
             f"env.task_config.targets.target_{i}.rgb=[{rgb[0]},{rgb[1]},{rgb[2]}]"
         )
@@ -1861,6 +1865,7 @@ class ConfigSaver:
     def __init__(self):
         self.my_configs = self.check_folder()
         self.run_inputs = None
+        self.button_geometry = {}
 
     def to_labelled_dict(self, data):
         labelled_dict = {}
@@ -1878,6 +1883,9 @@ class ConfigSaver:
             item_dict["radio"] = radio_values[i]
             item_dict["box"] = dict(
                 zip(BoxParameters.fields(), BoxParameters.get_my_args(i, data))
+            )
+            item_dict["box"] = restore_button_geometry(
+                item_dict["box"], self.button_geometry.get(i, {})
             )
             item_dict["sphere"] = dict(
                 zip(SphereParameters.fields(), SphereParameters.get_my_args(i, data))
@@ -1932,11 +1940,21 @@ class ConfigSaver:
             labelled_data.get(f"target_{i+1}") or self._default_target(i)
             for i in range(MAX_TARGETS)
         ]
+        # These fields have no widgets. Keep them outside the flat form values so
+        # loading a screen-mounted button does not shift every following input.
+        self.button_geometry = {
+            i: {
+                key: t["box"][key]
+                for key in ("euler", "box_thickness")
+                if key in (t.get("box") or {})
+            }
+            for i, t in enumerate(targets)
+        }
         for t in targets:
             data.append(t["radio"])
         for i, t in enumerate(targets):
             box = t.get("box") or self._default_target(i)["box"]
-            data.extend(box.values())
+            data.extend(box[key] for key in BoxParameters.fields())
         for i, t in enumerate(targets):
             sphere = t.get("sphere") or self._default_target(i)["sphere"]
             data.extend(sphere.values())
@@ -2559,7 +2577,9 @@ def get_ui(project_name, run_state=RunState(), use_legacy_rendering=False):
                 )
 
                 if target_type == "Box":
-                    sanity_check, overrides = BoxParameters.parse_values(i, args)
+                    sanity_check, overrides = BoxParameters.parse_values(
+                        i, args, config_saver.button_geometry.get(i)
+                    )
                     all_sanity_checks &= sanity_check
                     if not sanity_check:
                         return False, []
