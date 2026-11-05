@@ -42,6 +42,7 @@ def _setup(
     preset.write_text("{}", encoding="utf-8")
     monkeypatch.setattr(sys, "argv", ["myo_train.exe", "--config", str(preset), *args])
     monkeypatch.setitem(entrypoint, "gradio_json_to_overrides", lambda _raw: [])
+    monkeypatch.setitem(entrypoint, "training_task_overrides", lambda _raw, _args: [])
     monkeypatch.setitem(
         entrypoint,
         "load_config_interactive",
