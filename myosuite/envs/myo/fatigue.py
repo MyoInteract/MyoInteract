@@ -37,7 +37,7 @@ MUSCLE_FATIGUE_PARAMS = {
     "Wrist": {"F": 0.01227, "R": 0.00134, "r": 9.10},  #from Hand group (https://doi.org/10.1016/j.jbiomech.2021.110695)
     "Finger": {"F": 0.01227, "R": 0.00134, "r": 9.10},  #from Hand group (https://doi.org/10.1016/j.jbiomech.2021.110695)
     "Knee": {"F": 0.00825, "R": 0.00076, "r": 14.85},
-    "Shoulder": {"F": 0.00825, "R": 0.00076, "r": 14.85},  #Shoulder values from Looft & Frey-Law 2020 (https://doi.org/10.1016/j.jbiomech.2020.109762)
+    "Shoulder": {"F": 0.01820, "R": 0.00168, "r": 15},  #shoulder F, R from Frey-Law, Looft & Heitsman 2012 (Table 1, https://pmc.ncbi.nlm.nih.gov/articles/PMC3397684/); r=15 from Looft & Frey-Law 2020 (https://doi.org/10.1016/j.jbiomech.2020.109762)
 
     "Default": {"F": 0.00970, "R": 0.00091, "r": 15},  #default values from Looft et al. 2018 (https://doi.org/10.1016/j.jbiomech.2018.06.005); NOTE: r=30 is better for hand/wrist/finger muscles (see https://doi.org/10.1016/j.jbiomech.2020.109762)
 }
@@ -72,8 +72,8 @@ class CumulativeFatigue():
         self._R = np.zeros((self.na,))
         for i in range(self.na):
             self._r[i] = MUSCLE_FATIGUE_PARAMS.get(self.MFG[i], MUSCLE_FATIGUE_PARAMS[self.MFG[i].split("-")[0]]).get("r", MUSCLE_FATIGUE_PARAMS["Default"]["r"])
-            self._F[i] = MUSCLE_FATIGUE_PARAMS.get(self.MFG[i], MUSCLE_FATIGUE_PARAMS[self.MFG[i].split("-")[0]]).get("F", MUSCLE_FATIGUE_PARAMS["Default"]["r"]) 
-            self._R[i] = MUSCLE_FATIGUE_PARAMS.get(self.MFG[i], MUSCLE_FATIGUE_PARAMS[self.MFG[i].split("-")[0]]).get("R", MUSCLE_FATIGUE_PARAMS["Default"]["r"])
+            self._F[i] = MUSCLE_FATIGUE_PARAMS.get(self.MFG[i], MUSCLE_FATIGUE_PARAMS[self.MFG[i].split("-")[0]]).get("F", MUSCLE_FATIGUE_PARAMS["Default"]["F"])
+            self._R[i] = MUSCLE_FATIGUE_PARAMS.get(self.MFG[i], MUSCLE_FATIGUE_PARAMS[self.MFG[i].split("-")[0]]).get("R", MUSCLE_FATIGUE_PARAMS["Default"]["R"])
 
         # self._r = self._r * np.ones((self.na,))
         # self._F = self._F * np.ones((self.na,))
@@ -122,12 +122,9 @@ class CumulativeFatigue():
         idxs = self._MA >= self.TL
         C[idxs] = self._LR[idxs] * (self.TL[idxs] - self._MA[idxs])
 
-        # Calculate rR
-        rR = np.zeros_like(self._MA)
-        idxs = self._MA >= self.TL
-        rR[idxs] = (self._r*self._R)[idxs]
-        idxs = self._MA < self.TL
-        rR[idxs] = self._R[idxs]
+        # Calculate rR: the recovery multiplier r acts only at rest (Rakshit et al. 2021, Eq. 7:
+        # r = k if TL = 0, r = 1 if TL > 0); TL <= 0 also covers commands below a muscle's zero
+        rR = np.where(self.TL <= 0, self._r*self._R, self._R)
 
         # Clip C(t) if needed, to ensure that MA, MR, and MF remain between 0 and 1
         C = np.clip(C, np.maximum(-self._MA/self._dt + self._F*self._MA, (self._MR - 1)/self._dt + rR*self._MF),
