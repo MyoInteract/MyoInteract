@@ -25,11 +25,11 @@ Biomechanical simulations driven by reinforcement learning can predict how peopl
 interface: how long a reach takes, which muscles work, when the arm tires. In practice they have been hard to
 set up, slow to train and hard to interpret, which keeps them out of the design process.
 
-MyoInteract makes such a simulation something a designer can run in one sitting. The task (what to reach or
-press, and where), the user model (a muscle-driven arm) and the training settings are set up in a graphical
+With MyoInteract, a designer can run such a simulation in one go. The task (what to reach or
+press, and where), the user model (a muscle-driven arm and hand) and the training settings are set up in a graphical
 interface, and thousands of simulated users train in parallel on a GPU, so a policy is ready in minutes
-instead of hours or days. The paper reports training times reduced by up to 98% and a workshop in which
-interaction designers without prior experience set up, trained and assessed goal-directed movements within a
+instead of hours or days. In the paper, we report training times reduced by up to 98% and insights from a workshop in which
+interaction designers with no prior experience were able to set up, train and assess goal-directed movements within a
 single session.
 
 It builds on [MyoSuite](https://github.com/MyoHub/myosuite) (musculoskeletal models and tasks) and trains with
@@ -41,12 +41,12 @@ It builds on [MyoSuite](https://github.com/MyoHub/myosuite) (musculoskeletal mod
 
 | | |
 |---|---|
-| **Studio** (`myoInteract/studio/`) | The guided web app: body, task, sensing, reward, training and evaluation in front of a 3D scene, with Figma frames as task screens. Hosted at [myointeract.github.io/studio](https://myointeract.github.io/studio/); `myo_studio serve` adds training on your own GPU |
+| **Studio** (`myoInteract/studio/`) | The guided web app: body, task, sensing, reward, training and evaluation using an interactive 3D viewer, with Figma frames as optional task screens. Hosted at [myointeract.github.io/studio](https://myointeract.github.io/studio/); `myo_studio serve` adds training on your GPU |
 | **Tasks and user models** (`myoInteract/`, `myo_user/`) | Pointing and button tasks, single or in sequence, for the MoBL arm and MyoArm models, with optional muscle fatigue and motor noise |
-| **Configurations** (`myo_config/`) | Typed Hydra configs and the presets shared by Studio, the Gradio task builder and the command line |
 | **Training and playback** (`myo_train`, `myo_play`) | Command-line training with ONNX checkpoints, and the Gradio task builder of the paper |
-| **Example policies** (`myoInteract/studio/examples/`) | One trained policy per task example, with its evaluation and a recorded rollout |
-| **Tutorials** (`tutorials/myointeract/`) | Notebooks, including Studio on Colab |
+| **Configurations** (`myo_config/`) | Hydra configs and the presets shared by Studio, the Gradio task builder and the command line |
+| **Example policies** (`myoInteract/studio/examples/`) | One trained policy per task example, including a recorded rollout |
+| **Tutorials** (`tutorials/myointeract/`) | Notebooks hosting the Gradio interface from the paper and Studio for use with Colab |
 
 ## New in v1.0 since the paper
 
@@ -59,9 +59,9 @@ of this repository (**deprecated**; kept for reference). This release adds:
 - **Figma integration.** Paste the link of a Figma frame and it appears as a screen in front of the simulated
   user; its buttons and other controls become targets with the size, place and orientation they have in the
   design, and stay on the screen when you move it. A design goes from Figma to a trained user model without
-  rebuilding it by hand. An image works the same way for designs made elsewhere.
+  rebuilding it by hand. Alternatively, you can upload a screenshot of your UI for reference.
 - **Policies that run in the browser.** The hosted page plays the example policies itself (MuJoCo compiled to
-  WebAssembly), on their own task or on targets you set, without any installation.
+  WebAssembly), on their own task or on targets you manually set, without any installation.
 - **An installable package on MyoSuite 3.** `pip install` replaces the forked MyoSuite checkout and conda
   environment of the beta; MyoInteract uses the released `myosuite` through its public API.
 - **More user models:** MyoArm with and without the hand, next to the MoBL arm models.
@@ -72,9 +72,8 @@ of this repository (**deprecated**; kept for reference). This release adds:
 
 ## Authors and acknowledgements
 
-MyoInteract was created by **Ankit Bhattarai, Hannah Selder, Florian Fischer, Arthur Fleig and Per Ola
-Kristensson**. **Ankit Bhattarai** led the development of the initial beta release, on which this version is
-built. v1.0 is maintained by Florian Fischer.
+MyoInteract is a tool created by **Ankit Bhattarai, Hannah Selder, Florian Fischer, Arthur Fleig and Per Ola
+Kristensson**, and currently maintained by Florian Fischer. Many thanks to all providing highly valuable feedback over the last year!
 
 ## Quickstart
 
@@ -129,12 +128,12 @@ port, under `/viewer/`). Presets are the same files as in the Gradio UI.
 
 The Evaluate step lists **example policies**, one per bundled task example, trained on MyoArm (no hand)
 (`myoInteract/studio/examples/`): load one to watch it live, evaluate it again or open its task. The hosted
-page shows their stored results and replays a recorded rollout without any backend. A finished run becomes
-an example with `python -m myoInteract.studio.examples --run <log dir> --name <task example>`.
+page shows their stored results and replays a recorded rollout without any backend. To make a finished run a
+permanent example, run `python -m myoInteract.studio.examples --run <log dir> --name <task example>`.
 
 To test a policy **out of distribution**, set Evaluate's *Task* to "Setup in the editor": the run's policy is
-evaluated and played on the targets and episode length set in the editor, while its body model, timing and
-observations stay as trained (Studio refuses setups that change them) and the result lists what differs.
+evaluated and played on the targets (and episode length) set in the editor, while its body model, timing and
+observations stay as trained (Studio refuses setups that change them); any deviations from the training setup are listed in the result overview.
 
 Behind a proxy that already restricts access (Colab's port proxy, a private Space), start Studio with
 `--behind-proxy`: it then asks for no pairing code. `myoInteract.studio.colab.launch()` does this on Colab.
@@ -170,8 +169,8 @@ same task/action recipe.
 CUDA 12.8, use `torch==2.11.*` from the `cu128` index and `warp-lang<=1.16` (this is below the `torch>=2.13` floor
 of the `mjlab` extra, so install it with `--no-deps` afterwards). Older CUDA 12.6 drivers are not supported on Blackwell GPUs.
 
-`myosuite` (3.0.0 or newer) comes from PyPI. To develop against a local MyoSuite checkout, install it first
-(`pip install -e /path/to/myosuite`) and then `pip install -e . --no-deps`. An old editable install of the previous
+`myosuite` (3.0.0 or newer) comes from PyPI. To develop against a local MyoSuite checkout, install MyoSuite first
+(`pip install -e /path/to/myosuite`) and then install myoInteract via `pip install -e . --no-deps`. An old editable install of the previous
 `myosuite` fork must be uninstalled first.
 
 ## Layout
@@ -184,7 +183,7 @@ of the `mjlab` extra, so install it with `--no-deps` afterwards). Older CUDA 12.
 | `myo_config/` | Hydra task configs (`tasks/`) and UI presets (`gradio_tasks/`) |
 | `myo_user/` | MJCF models and assets of the universal task |
 | `tests/` | config round trip, MyoSuite 3 compatibility, Studio API and UI component tests |
-| `tutorials/myointeract/` | the myoInteract notebook (local and Colab) |
+| `tutorials/myointeract/` | the myoInteract and myoInteract Studio notebooks (local and Colab) |
 
 The release contains the universal pointing / button task (`myoInteractUniversal-v0`).
 
