@@ -194,6 +194,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .chip { font: inherit; font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; white-space: nowrap; }
 .chip:hover:not(:disabled) { color: var(--ink); border-color: color-mix(in srgb, var(--ink) 25%, var(--line)); }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip:not(.tog)[aria-pressed="true"]:hover:not(:disabled) { color: var(--bg); background: color-mix(in srgb, var(--ink) 85%, var(--bg)); border-color: var(--ink); }
 .chip.tog[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); color: var(--ink); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 .group-title { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
@@ -392,9 +393,9 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 <header class="hero">
   <div class="hero-in">
     <div>
-      <h1>Teach a <em>muscle-driven user model</em> to interact with your interface</h1>
+      <h1>Train a <em>muscle-driven user model</em> to interact with your interface</h1>
       <p class="lead">Design an interaction task, train it on a GPU, and inspect the resulting behaviour in your browser.</p>
-      <p class="paper-ref">From the DIS 2026 paper by Ankit Bhattarai, Hannah Selder, Florian Fischer, Arthur Fleig and Per Ola Kristensson. <a href="https://doi.org/10.1145/3800645.3812899" target="_blank" rel="noopener">Read the paper</a> · <button class="link-btn" type="button" data-cite>Cite it</button></p>
+      <p class="paper-ref">From the DIS 2026 paper by Ankit Bhattarai, Hannah Selder, Florian Fischer, Arthur Fleig and Per Ola Kristensson. <a href="https://doi.org/10.1145/3800645.3812899" target="_blank" rel="noopener">Read the paper</a> · <button class="link-btn" type="button" data-cite>Cite MyoInteract</button></p>
       <div class="cta">
         <button class="btn primary" type="button" id="hero-tour">Walkthrough</button>
         <button class="btn" type="button" id="hero-preset">Try the pointing example</button>
@@ -410,8 +411,8 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 
 <section class="facts" aria-label="Highlights">
   <div class="fact"><b>Cutting-edge arm and hand models</b><span>MyoArm and MoBL-ARMS, with or without hand muscles</span></div>
-  <div class="fact"><b>Complex pointing sequences</b><span>Spheres to point at, buttons to press</span></div>
-  <div class="fact"><b>Train and evaluate directly in your browser</b><span>MuJoCo in WebAssembly, nothing to install</span></div>
+  <div class="fact"><b>Complex pointing sequences</b><span>consisting of virtual spheres and physical buttons</span></div>
+  <div class="fact"><b>Train and evaluate directly in your browser</b><span>MuJoCo in WebAssembly, requiring no installation</span></div>
   <div class="fact"><b>~50 000 steps/s</b><span>4096 environments on one RTX 5090</span></div>
 </section>
 
@@ -511,11 +512,11 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 (function () {
   /* ---------------------------------------------------------------- options (from ui.py) */
   const MODELS = [
-    { id: "MyoArm_nohand", name: "MyoArm (w/o hand muscles)", note: "MyoSuite arm with detailed shoulder musculature (myo_sim 0.2.3); the default for pointing.", tag: "default" },
-    { id: "MyoArm_pointing", name: "MyoArm (index finger pose)", note: "MyoSuite arm whose hand points: index finger straight, the other fingers curled. For buttons and touch screens.", tag: "pointing" },
-    { id: "MyoArm", name: "MyoArm", note: "MyoSuite arm and hand, 63 muscles (myo_sim 0.2.3).", tag: "hand" },
+    { id: "MyoArm_nohand", name: "MyoArm (w/o hand muscles)", note: "MyoSuite arm with detailed shoulder musculature.", tag: "default" },
+    { id: "MyoArm_pointing", name: "MyoArm (index finger pose)", note: "MyoSuite arm with a fixed pointing gesture." },
+    { id: "MyoArm", name: "MyoArm", note: "MyoSuite arm and hand, 63 muscles." },
     { id: "MoBL_Arms_Index", name: "MoBL-ARMS (w/o hand muscles)", note: "Shoulder, elbow and wrist with a pointing finger.", tag: "MoBL-ARMS" },
-    { id: "MoBL_Arms_Hand", name: "MoBL-ARMS", note: "Adds hand and finger joints for button pressing.", tag: "MoBL-ARMS · hand" },
+    { id: "MoBL_Arms_Hand", name: "MoBL-ARMS", note: "Adds the hand and finger muscles.", tag: "MoBL-ARMS" },
   ];
   const RESETS = [
     ["epsilon_uniform", "Rest pose with small random offsets (default)"],
@@ -532,15 +533,15 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     task: [["target_pos", "target position"], ["target_size", "target size"], ["phase_progress", "which target is next"], ["dwell_fraction", "time held inside"]],
   };
   const REWARDS = [
-    ["distance", 1, 0, 10, 0.1, "Pays for getting closer to the current target, every step. The main learning signal."],
+    ["distance", 1, 0, 10, 0.1, "Rewards approaching the current target at every step; the main learning signal."],
     ["subtask_bonus", 0, 0, 10, 0.5, "One-off bonus for each target reached in a sequence."],
     ["completion_bonus", 10, 0, 50, 1, "One-off bonus when the whole task is done."],
-    ["neural_effort", 0, 0, 0.1, 0.0001, "Penalises large muscle commands: smoother, more human-like movements."],
+    ["neural_effort", 0, 0, 0.1, 0.0001, "Penalises large muscle commands, for smoother movements."],
     ["body_contact_penalty", 0, 0, 0.01, 0.0001, "Penalises touching the torso with the arm."],
     // The terms below have no slider in the Gradio UI: it keeps a preset's values but cannot change them.
-    ["action_rate", 0, 0, 0.05, 0.0001, "Penalises changing the muscle commands from one step to the next: less jitter.", true],
+    ["action_rate", 0, 0, 0.05, 0.0001, "Penalises abrupt changes of the muscle commands (less jitter).", true],
     ["pain_penalty", 0, 0, 2, 0.01, "Penalises holding a joint beyond its comfortable range.", true],
-    ["pronation", 0, 0, 5, 0.05, "Penalises a forearm turned palm-up: the palm faces down, as people point and press.", true],
+    ["pronation", 0, 0, 5, 0.05, "Penalises turning the palm up.", true],
     ["button_force", 0, 0, 15, 0.05, "Penalises pressing a button harder than a deliberate press (5 N).", true],
   ];
   // Reward terms the Gradio task builder has no control for: stored in presets as Hydra overrides.
@@ -689,23 +690,23 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 
   /* ---------------------------------------------------------------- 1 body */
   function renderBody(ws) {
-    ws.append(h(`${head("Choose the body", "Pick the biomechanical user model. All models are muscle-actuated; models without hand muscles suffice for pointing.")}
+    ws.append(h(`${head("Choose the body", "All models are muscle-actuated. Models without hand muscles suffice for pointing.")}
       <div class="cards" id="model-cards"></div>
       <div class="grid2">
-        <div class="field"><label for="ctrl_dt">Control step</label><input id="ctrl_dt" type="number" min="0.01" max="0.2" step="0.01" value="${esc(S.bm.ctrl_dt)}" data-bind="bm.ctrl_dt"><span class="hint">Seconds between two muscle commands. 0.05 s (20 Hz) is a good default; smaller is slower to train.</span></div>
+        <div class="field"><label for="ctrl_dt">Control step</label><input id="ctrl_dt" type="number" min="0.01" max="0.2" step="0.01" value="${esc(S.bm.ctrl_dt)}" data-bind="bm.ctrl_dt"><span class="hint">Seconds between two muscle commands; smaller steps train more slowly.</span></div>
         <div class="field"><label for="reset_type">Start pose</label><select id="reset_type" data-bind="bm.reset_type">${RESETS.map(([v, l]) => `<option value="${v}" ${S.bm.reset_type === v ? "selected" : ""}>${l}</option>`).join("")}</select><span class="hint">Random start poses make the policy more robust.</span></div>
       </div>
       <div class="grid2">
-        <label class="toggle-row"><input type="checkbox" data-bind="bm.sigdepnoise_enabled" ${S.bm.sigdepnoise_enabled ? "checked" : ""}><span><b>Signal-dependent motor noise</b><span>Motor noise grows with the muscle command, as in human motor control. Produces speed-accuracy trade-offs.</span></span></label>
+        <label class="toggle-row"><input type="checkbox" data-bind="bm.sigdepnoise_enabled" ${S.bm.sigdepnoise_enabled ? "checked" : ""}><span><b>Signal-dependent motor noise</b><span>Noise grows with the muscle command, producing speed-accuracy trade-offs.</span></span></label>
         <label class="toggle-row"><input type="checkbox" data-bind="bm.constantnoise_enabled" ${S.bm.constantnoise_enabled ? "checked" : ""}><span><b>Constant motor noise</b><span>A fixed amount of motor noise on every command.</span></span></label>
-        <label class="toggle-row"><input type="checkbox" data-bind="bm.fatigue_enabled" ${S.bm.fatigue_enabled ? "checked" : ""}><span><b>Muscle fatigue</b><span>Muscles tire with use and recover at rest (3-compartment model). Enables the fatigue observations in step 3.</span></span></label>
+        <label class="toggle-row"><input type="checkbox" data-bind="bm.fatigue_enabled" ${S.bm.fatigue_enabled ? "checked" : ""}><span><b>Muscle fatigue (experimental)</b><span>Muscles tire with use and recover at rest. Enables the fatigue observations in step 3.</span></span></label>
       </div>`));
     const cards = ws.querySelector("#model-cards");
     for (const m of MODELS) {
       const b = document.createElement("button");
       b.className = "card"; b.type = "button";
       b.setAttribute("aria-pressed", String(S.bm.bm_model === m.id));
-      b.innerHTML = `<span class="tag">${m.tag}</span><b>${m.name}</b><span>${m.note}</span>`;
+      b.innerHTML = `${m.tag ? `<span class="tag">${m.tag}</span>` : ""}<b>${m.name}</b><span>${m.note}</span>`;
       b.addEventListener("click", () => { S.bm.bm_model = m.id; render(); });
       cards.append(b);
     }
@@ -770,7 +771,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
         ${r("x", "Forward (m)", "Distance in front of the shoulder (x).", -1, 1, 0.005)}
         ${r("y", "Sideways (m)", "Right (–) to left (+) of the shoulder (y).", -1, 1, 0.005)}
         ${r("z", "Vertical (m)", "Below (–) or above (+) the shoulder (z).", -1, 1, 0.005)}
-        ${t.type === "Sphere" ? r("size", "Radius (m)", "Each episode draws a size from this range.", 0.005, 0.2, 0.005) + `<div class="field" ${row("dwell")}><label>Dwell time (s)</label><input type="number" min="0" max="2" step="0.05" value="${esc(t.dwell)}" data-bind="t.${i}.dwell"><span class="hint">How long the fingertip must stay inside to count as a hit.</span></div>`
+        ${t.type === "Sphere" ? r("size", "Radius (m)", "Each episode draws a size from this range.", 0.005, 0.2, 0.005) + `<div class="field" ${row("dwell")}><label>Dwell time (s)</label><input type="number" min="0" max="2" step="0.05" value="${esc(t.dwell)}" data-bind="t.${i}.dwell"><span class="hint">Time the fingertip must stay inside the target.</span></div>`
           : `<div class="field" ${row("force")}><label>Minimum force (N)</label><input type="number" min="0" max="20" step="0.5" value="${esc(t.force)}" data-bind="t.${i}.force"><span class="hint">How hard the button must be pressed.</span></div><div class="field" ${row("angle")}><label>Angle (°)</label><input type="number" min="0" max="180" step="5" value="${esc(t.angle)}" data-bind="t.${i}.angle"><span class="hint">Tilt of the button surface.</span></div>`}
       </div></div>`;
   }
@@ -786,7 +787,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       <div class="chips"><button class="btn" type="button" id="add-target">Add a target</button></div>
       ${screenHtml()}
       <div class="grid2">
-        <div class="field"><label for="max_duration">Episode length (s)</label><input id="max_duration" type="number" min="1" max="60" step="0.5" value="${esc(S.task.max_duration)}" data-bind="task.max_duration"><span class="hint">Time to finish all targets before the episode ends.</span></div>
+        <div class="field"><label for="max_duration">Episode length (s)</label><input id="max_duration" type="number" min="1" max="60" step="0.5" value="${esc(S.task.max_duration)}" data-bind="task.max_duration"><span class="hint">Time limit for reaching all targets.</span></div>
         <label class="toggle-row"><input type="checkbox" data-bind="task.reject_unreachable" ${S.task.reject_unreachable ? "checked" : ""}><span><b>Reject out-of-reach targets</b><span>Redraw a target that the arm cannot reach.</span></span></label>
       </div>`));
     const box = ws.querySelector("#targets");
@@ -860,18 +861,18 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     const sc = S.screen;
     return `<details class="screen-box" ${sc ? "open" : ""}><summary><b>Screen in front of the user</b> <span class="muted">· from Figma or an image</span></summary>
       <div style="display:grid; gap:12px; margin-top:12px">
-        <p class="hint">Place a user interface in the scene. From a Figma frame, its buttons and other controls can become targets that stay on the screen when you move it.</p>
+        <p class="hint">Place a user interface in the scene. The controls of a Figma frame can become targets.</p>
         <div class="field"><label for="figma-url">Figma frame link</label><input type="url" id="figma-url" placeholder="https://www.figma.com/design/…?node-id=…" value="${esc((S.figma && S.figma.url) || "")}"><span class="hint">In Figma, select the frame and use "Copy link to selection".</span></div>
         <div class="field"><label for="figma-token">Personal access token</label><input type="password" id="figma-token" autocomplete="off" placeholder="figd_…" value="${esc(figmaToken())}">
           <label class="hint" style="display:flex; gap:6px; align-items:center"><input type="checkbox" id="figma-remember" ${figmaRemembered() ? "checked" : ""}> Remember the token in this browser</label>
-          <span class="hint">Sent only to Figma (api.figma.com). Unticked, it is kept until this tab closes; ticked, it stays in this browser's storage for this site, readable by anyone using this browser profile. Use a read-only token.</span></div>
+          <span class="hint">Sent only to Figma (api.figma.com). Kept until this tab closes or, if ticked, in this browser profile's storage. Use a read-only token.</span></div>
         <div class="chips"><button class="btn" type="button" id="figma-go">Import from Figma</button></div>
         <div class="chips"><label class="chip" for="screen-file" style="cursor:pointer">Or use an image</label><input type="file" id="screen-file" accept="image/png,image/jpeg,image/webp" hidden></div>
         ${sc ? `<div class="field"><label for="screen-width">Screen width (m)</label><input type="number" id="screen-width" min="0.05" max="2" step="0.01" value="${esc(sc.widthM)}"><span class="hint">${esc(sc.name || "Screen")} · ${Math.round(sc.width)} × ${Math.round(sc.height)} px. Click the screen in the 3D view to move it (M) or rotate it (R).</span></div>
           ${sc.elements && sc.elements.length ? `<div class="chips"><button class="btn" type="button" data-screen-targets="Sphere">Its ${sc.elements.length} elements become sphere targets</button><button class="btn" type="button" data-screen-targets="Button">… or button targets</button></div>${sc.more ? `<span class="hint">${esc(sc.more)} more elements were left out.</span>` : ""}` : ""}
           <div class="chips"><button class="chip" type="button" id="screen-remove">Remove the screen</button></div>` : ""}
         <span class="muted" id="screen-msg" role="status"></span>
-        <p class="hint">The screen is a visual aid for placing targets. It is not part of the training configuration, so a vision policy does not see it yet.</p>
+        <p class="hint">The screen is a visual aid only: it is not part of training, so vision policies do not see it.</p>
       </div></details>`;
   }
   // The Figma token: for this tab only, or (opt-in) kept in this browser's storage. It never leaves for anywhere but Figma.
@@ -1502,7 +1503,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 
   /* ---------------------------------------------------------------- 5 training */
   function renderTraining(ws) {
-    ws.append(h(`${head("Training budget and compute", "Pointing is usually learned within 10–50 M steps; the defaults are a good starting point.")}
+    ws.append(h(`${head("Training budget and compute", "Pointing is usually learned within 10–50 M steps.")}
       <div class="cards" id="target-cards"></div>
       <div class="grid2">
         <div class="field"><label for="rl-steps">Total steps</label><input id="rl-steps" type="number" min="100000" step="1000000" value="${esc(S.rl.steps)}" data-bind="rl.steps"><span class="hint">Simulated control steps over all environments.</span></div>
@@ -1757,7 +1758,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     if (S.examples.length) return renderEvaluateExamples(ws);
     const has = S.run && S.run.pts.length;
     const last = has ? S.run.pts[S.run.pts.length - 1] : null;
-    ws.append(h(`${head("Evaluate", "Evaluate a policy on new episodes with respect to success, time, effort and muscle activity.")}
+    ws.append(h(`${head("Evaluate", "Success, time, effort and muscle activity on new episodes.")}
       <p class="demo-banner">Demo mode: these numbers are simulated. Connect a backend to evaluate real checkpoints.</p>
       <div class="stat-row">
         <div class="stat"><b>${has ? Math.round(last[1] * 100 * 0.97) + "%" : "–"}</b><span>success rate</span></div>
@@ -1829,7 +1830,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     // the example chosen here, else the one trained on the task in the editor, else the first
     const ex = S.examples.find((e) => e.name === S.exampleSel) || S.examples.find((e) => e.name === S.preset) || S.examples[0];
     const mine = ex.name === S.preset, exTargets = () => exampleTargets(ex);
-    ws.append(h(`${head("Evaluate", "Evaluate a policy on new episodes with respect to success, time, effort and muscle activity.")}
+    ws.append(h(`${head("Evaluate", "Success, time, effort and muscle activity on new episodes.")}
       <p class="demo-banner">Pretrained example policies with stored results. <button class="link-btn" type="button" data-connect>Connect compute</button> to evaluate your own runs, or any policy on the setup in the editor (out of distribution).</p>
       <p class="mode-note"><span class="mode-badge eval">Evaluation</span>${mine ? `The ${esc(ex.title)} policy, on the task it was trained on.` : `The ${esc(ex.title)} example on <b>its own task</b>, not the one in the editor. <a href="#" id="ex-open-note">Open its task in the editor</a> to work on it.`}</p>
       <div class="field"><label for="ex-sel">Example policy</label><select id="ex-sel">${S.examples.map((e) => `<option value="${esc(e.name)}" ${e === ex ? "selected" : ""}>${esc(e.title)}</option>`).join("")}</select>
@@ -1837,7 +1838,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       <div class="chips">${ex.sim && S.evalMode === "live" ? "" : `<span class="hint">The 3D view replays a recorded rollout.</span>`}<button class="btn small" type="button" id="ex-open">Open the task in the editor</button></div>
       <p class="err" id="ex-msg" hidden></p>
       ${statRow(ex.evaluation, exTargets)}
-      ${ex.sim && S.evalMode === "live" ? `<p class="hint">Simulated in your browser with MuJoCo, with a new start pose and new targets every episode${ex.summary && ex.summary.fatigue ? ", from a random fatigue state" : ""}. <span id="sim-stats">${S.sim ? simStats(S.sim) : ""}</span> <a href="#" id="sim-reset" title="Start the count again from a new episode">Reset</a></p><p class="hint">The live dashboard shows the busiest muscles and the most stressed joints, live and per episode. "Play example policy" in the Task step runs it on the selected target ranges.</p>` : ""}`));
+      ${ex.sim && S.evalMode === "live" ? `<p class="hint">Simulated in your browser with MuJoCo, with a new start pose and new targets every episode${ex.summary && ex.summary.fatigue ? ", from a random fatigue state" : ""}. <span id="sim-stats">${S.sim ? simStats(S.sim) : ""}</span> <a href="#" id="sim-reset" title="Start the count again from a new episode">Reset</a></p><p class="hint">"Play example policy" in the Task step runs it on the selected target ranges.</p>` : ""}`));
     if (ws.querySelector("#sim-reset")) ws.querySelector("#sim-reset").addEventListener("click", (e) => {
       e.preventDefault();
       const sim = S.sim;
@@ -1891,7 +1892,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     const resTargets = () => (res ? targetsHtml(res.targets_reached, (run && run.example ? run.example.replay.hello.targets : S.live ? S.live.targets : []).map((t) => t.rgba), null, `share of ${res.episodes} episodes`) : "");
     const opt = (r) => `<option value="${esc(r.id)}" ${run && r.id === run.id ? "selected" : ""}>${esc(r.name)}${runSummary(r) ? " · " + esc(runSummary(r)) : ""} · ${r.checkpoints.length} checkpoint${r.checkpoints.length === 1 ? "" : "s"}</option>`;
     const group = (label, list) => (list.length ? `<optgroup label="${label}">${list.map(opt).join("")}</optgroup>` : "");
-    ws.append(h(`${head("Evaluate", "Evaluate a policy on new episodes with respect to success, time, effort and muscle activity.")}
+    ws.append(h(`${head("Evaluate", "Success, time, effort and muscle activity on new episodes.")}
       ${live.length ? `<p class="muted">Training now: <b>${esc(live.map((r) => r.name).join(", "))}</b>. Its newest checkpoint appears here within seconds of being saved; switch to <a href="#" data-go-step="5">Train</a> for the curves.</p>` : ""}
       <div class="grid2">
         <div class="field"><label for="ev-run">Run</label><select id="ev-run">${runs.length ? group("Training now", live) + group("Started in Studio", studio) + group("Other runs (logs/rsl_rl)", other) + group("Example policies", examples) : "<option>No runs with checkpoints yet</option>"}</select>
@@ -2343,7 +2344,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     { el: "#stepper", title: "Seven steps", text: "Studio takes a task from the body model to an evaluated policy. You can either follow the steps in order or jump between them as you wish." },
     { step: 0, el: "#workspace", title: "1 · Body", text: "Pick the biomechanical user model: MyoArm or MoBL-ARMS, with or without hand muscles. All models are muscle-actuated." },
     { step: 1, el: "#workspace", title: "2 · Task Setup", text: "Define an arbitrary sequence of spheres to point at or buttons to press. Target positions and sizes are drawn from the respective ranges for each episode. A Figma frame or an image can serve as the screen." },
-    { step: 1, el: "#stage", title: "The 3D view", text: "Targets and their sampling areas can also be dragged here. \"Play example policy\" runs a trained policy on the selected target ranges." },
+    { step: 1, el: "#stage", title: "The 3D view", text: "Inspect the interaction scene in 3D view. Targets and their sampling areas can be dragged here." },
     { step: 1, el: "#scene-bar", title: "View Panel", text: "Here you can change the view and define visible layers." },
     { step: 2, el: "#workspace", title: "3 · Sensing", text: "Define the observation space of the simulated user." },
     { step: 3, el: "#workspace", title: "4 · Reward", text: "Balancing reward terms is essential to ensure the agent succeeds while maintaining plausible movements and muscle activations." },

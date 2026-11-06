@@ -1,7 +1,7 @@
 [project]
 name = "myoInteract"
 version = "1.0.0"
-description = "Teach a muscle-driven user model to interact with your interface"
+description = "Train a muscle-driven user model to interact with your interface"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-only" }
