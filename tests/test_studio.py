@@ -18,7 +18,7 @@ from myoInteract.studio.examples import (  # noqa: E402
     list_examples,
 )  # noqa: E402
 from myoInteract.studio.runs import RunManager, metrics  # noqa: E402
-from myoInteract.studio.server import BUNDLED_PRESETS, create_app  # noqa: E402
+from myoInteract.studio.server import BUNDLED_PRESETS, STATIC, create_app  # noqa: E402
 
 POINTING = json.loads((BUNDLED_PRESETS / "pointing.json").read_text())
 
@@ -371,6 +371,9 @@ def test_site_ships_the_examples_without_their_checkpoints(tmp_path: Path) -> No
         if e["replay"]["hello"]["model"] == "MyoArm_nohand"
     ]
     assert not list((tmp_path / "site").rglob("*.onnx"))
+    # the visit counter is on the hosted page only, never on the page myo_studio serve sends
+    assert "goatcounter" in (tmp_path / "site" / "index.html").read_text()
+    assert "goatcounter" not in (STATIC / "index.html").read_text()
     for example in index:
         shipped = {
             p.name for p in (tmp_path / "site" / "examples" / example["name"]).iterdir()
