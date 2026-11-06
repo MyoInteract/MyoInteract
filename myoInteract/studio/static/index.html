@@ -1133,7 +1133,9 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       if (r.hello) ctrl += pause;
     } else if (S.step <= 4 || (S.step === 5 && !S.backend)) {
       status += badge("setup", "Task setup") + pill("", S.step === 1 ? "Static rest posture · drag the targets to place them" : "Static rest posture");
-      if (S.step === 1 && simExample()) ctrl += `<button class="chip primary-chip" type="button" data-sim-play title="Runs the ${esc(simExample().title)} example policy on the selected target ranges">&#9654; Play example policy</button>`;
+      if (S.step === 1) ctrl += simExample()
+        ? `<button class="chip primary-chip" type="button" data-sim-play title="Runs the ${esc(simExample().title)} example policy on the selected target ranges">&#9654; Play example policy</button>`
+        : `<span title="${esc(simRequirement())}"><button class="chip primary-chip" type="button" disabled>&#9654; Play example policy</button></span>`;
     }
     // The glTF export is switched off for now (EXPORT_3D); its code stays, to be re-enabled later.
     if (EXPORT_3D) html += `<button class="chip" type="button" data-export="glb" title="Download the 3D scene (arm, targets, screen) as a glTF file, for Blender, Unity, Figma plug-ins and web pages">Export 3D (glTF)</button>`;
@@ -1333,6 +1335,12 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   // The example whose policy fits the setup in the editor: same body, one sphere target, no fatigue.
   // (Buttons sit at fixed places in their examples, so only sphere tasks are offered for free exploration.)
   const simExample = () => (liveTargets().length === 1 && liveTargets()[0].type === "Sphere" && S.examples.find((e) => e.sim && e.replay.hello.model === S.bm.bm_model && e.summary && e.summary.targets === 1 && e.sim_kind === "sphere" && !!e.summary.fatigue === !!S.bm.fatigue_enabled)) || null;
+  // Why "Play example policy" is greyed out: the setups an example policy fits.
+  function simRequirement() {
+    const fits = S.examples.filter((e) => e.sim && e.sim_kind === "sphere" && e.summary && e.summary.targets === 1 && !e.summary.fatigue);
+    const bodies = [...new Set(fits.map((e) => (MODELS.find((m) => m.id === e.replay.hello.model) || { name: e.replay.hello.model }).name))];
+    return bodies.length ? `Available for a single sphere target on ${bodies.join(" or ")}, without muscle fatigue` : "No example policy fits this task";
+  }
   function stopSim() {
     if (!S.sim) return;
     clearInterval(S.sim.timer);
@@ -1838,7 +1846,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       <div class="chips">${ex.sim && S.evalMode === "live" ? "" : `<span class="hint">The 3D view replays a recorded rollout.</span>`}<button class="btn small" type="button" id="ex-open">Open the task in the editor</button></div>
       <p class="err" id="ex-msg" hidden></p>
       ${statRow(ex.evaluation, exTargets)}
-      ${ex.sim && S.evalMode === "live" ? `<p class="hint">Simulated in your browser with MuJoCo, with a new start pose and new targets every episode${ex.summary && ex.summary.fatigue ? ", from a random fatigue state" : ""}. <span id="sim-stats">${S.sim ? simStats(S.sim) : ""}</span> <a href="#" id="sim-reset" title="Start the count again from a new episode">Reset</a></p><p class="hint">"Play example policy" in the Task step runs it on the selected target ranges.</p>` : ""}`));
+      ${ex.sim && S.evalMode === "live" ? `<p class="hint">Simulated in your browser with MuJoCo, with a new start pose and new targets every episode${ex.summary && ex.summary.fatigue ? ", from a random fatigue state" : ""}. <span id="sim-stats">${S.sim ? simStats(S.sim) : ""}</span> <a href="#" id="sim-reset" title="Start the count again from a new episode">Reset</a></p>${ex.sim_kind === "sphere" && ex.summary && ex.summary.targets === 1 ? `<p class="hint">${esc(simRequirement().replace("Available for", "With"))}, "Play example policy" in the Task step runs this policy on your own target ranges.</p>` : ""}` : ""}`));
     if (ws.querySelector("#sim-reset")) ws.querySelector("#sim-reset").addEventListener("click", (e) => {
       e.preventDefault();
       const sim = S.sim;

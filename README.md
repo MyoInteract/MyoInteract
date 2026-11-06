@@ -69,7 +69,7 @@ need that backend. This release adds:
 - **More places to train:** your own machine, a lab server through an SSH tunnel, Google Colab
   (`tutorials/myointeract/studio_colab.ipynb`) or a Docker Space in your own Hugging Face account
   (`hf_space_studio/`).
-- **Export:** the 3D scene as glTF and the task as a MuJoCo model.
+- **Export:** the task as a MuJoCo model, with a connected backend.
 
 ## Authors and acknowledgements
 
