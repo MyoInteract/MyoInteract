@@ -33,6 +33,7 @@ if gr.NO_RELOAD:
         extra_hydra_overrides,
     )
     from myoInteract.register_mjlab_myointeract_tasks import (
+        _vision_camera_recipe,
         _universal_spec_fn,
         _get_myoInteract_root as _get_myosuite_root,
         _compute_target_origin,
@@ -121,12 +122,21 @@ if gr.NO_RELOAD:
         omni_keys = tuple(config.env.task_config.omni_keys)
         try:
             vision_cfg = config.vision
-            vision_key = (
-                getattr(vision_cfg, "enabled", False),
-                getattr(vision_cfg, "vision_mode", None),
-            )
+            if getattr(vision_cfg, "enabled", False):
+                recipe = _vision_camera_recipe(vision_cfg)
+                vision_key = (
+                    True,
+                    recipe["data_types"],
+                    recipe["width"],
+                    recipe["height"],
+                    recipe["depth_min"],
+                    recipe["depth_cutoff"],
+                    recipe["enabled_geom_groups"],
+                )
+            else:
+                vision_key = (False,)
         except AttributeError:
-            vision_key = (False, None)
+            vision_key = (False,)
         return (
             config.env.model_path,
             config.env.ctrl_dt,
@@ -1985,6 +1995,10 @@ class ConfigSaver:
         # does for training configs bundled with a run.
         if "env" in raw_data:
             labelled_data = training_config_to_labelled_dict(raw_data)
+            if getattr(self, "run_state", None) is not None:
+                self.run_state.loaded_policy_extra_overrides = extra_hydra_overrides(
+                    raw_data
+                )
         else:
             labelled_data = raw_data
             # A preset's settings without a UI control apply to training like a checkpoint's do.

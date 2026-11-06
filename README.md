@@ -159,6 +159,14 @@ the timing (`env.ctrl_dt`, `env.sim_dt` or the episode length `env.task_config.m
 add it to the `extra_overrides` list of the config file rather than passing it on the command
 line: the timing is then stored with the checkpoint, so evaluation uses the same timing as training.
 
+Vision tasks honor their selected RGB/depth channels, image dimensions and depth bounds.
+New runs record `vision.recipe_version=2`. Unversioned vision checkpoints retain the
+historical RGBD, 128×128 input recipe when loaded, even if their saved requested settings
+differ. Explicit `--resume-checkpoint` continuation reads that recipe from the checkpoint's
+configuration sidecar. For vision auto-resume, or a checkpoint without its sidecar, choose
+the recipe explicitly in the preset's `extra_overrides`: `vision.recipe_version=1` for the
+historical inputs, or `vision.recipe_version=2` for a policy trained with configurable vision.
+
 ## Requirements
 
 | | |

@@ -133,12 +133,17 @@ def shifted_task(log_dir: Path, preset: dict) -> dict:
 
     Raises ``HTTPException`` if the setup is invalid or changes what the policy depends on.
     """
-    from myoInteract.myointeract_hydra_cli import load_config_interactive  # noqa: PLC0415
+    from myoInteract.myointeract_hydra_cli import (  # noqa: PLC0415
+        checkpoint_task_overrides,
+        load_config_interactive,
+    )
 
     overrides, setup = resolve_preset(preset)
     with _hydra_lock:
         trained = load_config_interactive(
-            json.loads((log_dir / "original_hydra_config.json").read_text())
+            checkpoint_task_overrides(
+                json.loads((log_dir / "original_hydra_config.json").read_text())
+            )
         ).to_dict()
     try:
         changes = task_changes(trained, setup)

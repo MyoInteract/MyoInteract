@@ -171,10 +171,14 @@ class VisionModes(str, Enum):
 @dataclass
 class VisionEnabledConfig:
     enabled: bool = True
+    # Version 1 checkpoints used a fixed RGBD/128px recipe regardless of settings.
+    recipe_version: int = 2
     vision_mode: VisionModes = field(default_factory=lambda: VisionModes.rgb)
     gpu_id: int = 0
     render_width: int = 96  # 640  #960
     render_height: int = 96  # 480  #720
+    depth_min: float = 0.01
+    depth_cutoff: float = 1.0
     enabled_geom_groups: list[int] = field(default_factory=lambda: [0, 1, 2])
     observation_cameras: list[int] = field(default_factory=lambda: [0])
     evaluation_cameras: list[int] = field(default_factory=lambda: [0, 1])

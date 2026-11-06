@@ -1997,6 +1997,51 @@ def _sequential_task_time_out(env: ManagerBasedRlEnv) -> torch.Tensor:
     return mdp_terminations.time_out(env) & ~completed
 
 
+def _vision_camera_recipe(vision) -> dict:
+    """Use requested sensing for new tasks and retain old checkpoints' actual inputs."""
+    version = vision.get("recipe_version", 1)
+    if version == 1:
+        return dict(
+            data_types=("rgb", "depth"),
+            width=128,
+            height=128,
+            depth_min=0.01,
+            depth_cutoff=0.5,
+            enabled_geom_groups=(0, 3),
+        )
+    if version != 2:
+        raise ValueError(f"Unsupported vision recipe version: {version}")
+    mode = getattr(vision.vision_mode, "value", vision.vision_mode)
+    modes = {
+        "rgb": ("rgb",),
+        "depth": ("depth",),
+        "rgbd": ("rgb", "depth"),
+    }
+    if mode not in modes:
+        raise ValueError(
+            f"Unsupported vision mode: {mode}. Choose rgb, depth, or rgbd."
+        )
+    width, height = vision.render_width, vision.render_height
+    if any(
+        isinstance(value, bool) or not isinstance(value, int) or value < 1
+        for value in (width, height)
+    ):
+        raise ValueError("Vision render dimensions must be positive integers.")
+    minimum, cutoff = float(vision.depth_min), float(vision.depth_cutoff)
+    if not (math.isfinite(minimum) and math.isfinite(cutoff) and 0 <= minimum < cutoff):
+        raise ValueError(
+            "Vision depth bounds must be finite and satisfy 0 <= depth_min < depth_cutoff."
+        )
+    return dict(
+        data_types=modes[mode],
+        width=width,
+        height=height,
+        depth_min=minimum,
+        depth_cutoff=cutoff,
+        enabled_geom_groups=tuple(vision.enabled_geom_groups),
+    )
+
+
 def _make_universal_env_cfg(config: Config, play: bool = False) -> ManagerBasedRlEnvCfg:
     """Minimal ManagerBasedRlEnvCfg for myoInteractUniversal-v0 (1 env, CPU/GPU)."""
 
@@ -2050,19 +2095,18 @@ def _make_universal_env_cfg(config: Config, play: bool = False) -> ManagerBasedR
 
     # Add vision based on an existing camera from the XML file
     if vision_enabled:
+        recipe = _vision_camera_recipe(config.env.vision)
         camera_names = ["universal_robot/fixed-eye"]
         cam_kwargs = {
             "universal_robot/fixed-eye": {
-                "height": 128,  # 500, #180, #120,
-                "width": 128,  # 500, #240, #160,
+                "height": recipe["height"],
+                "width": recipe["width"],
             },
         }
-        cam_types = (
-            ["rgb", "depth"] if vision_enabled else []
-        )  # TODO: infer from config
+        cam_types = recipe["data_types"]
         shared_cam_kwargs = dict(
             data_types=cam_types,
-            enabled_geom_groups=(0, 3),
+            enabled_geom_groups=recipe["enabled_geom_groups"],
             use_shadows=False,
             use_textures=True,
         )
@@ -2080,7 +2124,8 @@ def _make_universal_env_cfg(config: Config, play: bool = False) -> ManagerBasedR
             for cam_type in cam_types:
                 if cam_type == "depth":
                     _param_kwargs = param_kwargs.copy()
-                    _param_kwargs["cutoff_distance"] = 0.5
+                    _param_kwargs["cutoff_distance"] = recipe["depth_cutoff"]
+                    _param_kwargs["min_depth"] = recipe["depth_min"]
                     func = manipulation_mdp.camera_depth
                 else:
                     _param_kwargs = param_kwargs
@@ -2758,7 +2803,14 @@ def register_mjlab_myointeract_task(config: Config) -> None:
 
             def _env_init_preserve_qpos(self, *args, _orig=_orig_env_init, **kwargs):
                 _orig(self, *args, **kwargs)
-                if "universal_robot" not in self.scene._entities:
+                entity = self.scene._entities.get("universal_robot")
+                task = getattr(entity, "task_config", None)
+                if getattr(task, "reset_type", "zero") not in ("None", None):
+                    return
+                # The entity captures this environment's recipe. A later task
+                # registration must not change another instance's reset behavior.
+                base_config = getattr(getattr(entity, "cfg", None), "base_config", None)
+                if base_config is not None and _curriculum_enabled(base_config):
                     return
                 _orig_sim_reset = self.sim.reset
 
