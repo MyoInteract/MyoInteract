@@ -115,7 +115,8 @@ p { margin: 0; }
 #cite-bib { white-space: pre-wrap; overflow-wrap: anywhere; max-height: none; }
 .hero .btn.primary { background: var(--hero-hi); color: var(--hero-a); border-color: var(--hero-hi); }
 .steps-strip { display: grid; gap: 8px; }
-.strip-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.07); font-size: 0.9rem; }
+.strip-item { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.07); font: inherit; font-size: 0.9rem; color: inherit; text-align: left; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.strip-item:hover, .strip-item:focus-visible { background: rgba(255, 255, 255, 0.09); border-color: rgba(242, 107, 79, 0.45); }
 .strip-item b { font-family: var(--font-display); font-size: 0.92rem; }
 .strip-num { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.8rem; background: rgba(242, 107, 79, 0.16); color: var(--hero-hi); }
 .strip-item span { color: var(--hero-muted); }
@@ -400,9 +401,9 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
       </div>
     </div>
     <div class="steps-strip" aria-label="How it works">
-      <div class="strip-item"><span class="strip-num">1</span><div><b>Design</b> <span>· body, targets, sensing, reward</span></div></div>
-      <div class="strip-item"><span class="strip-num">2</span><div><b>Train</b> <span>· your GPU, Colab, a Space or a lab server</span></div></div>
-      <div class="strip-item"><span class="strip-num">3</span><div><b>Evaluate</b> <span>· success, speed, effort and muscle activity</span></div></div>
+      <button class="strip-item" type="button" data-strip-step="0"><span class="strip-num">1</span><div><b>Design</b> <span>· body, targets, observations, reward</span></div></button>
+      <button class="strip-item" type="button" data-strip-step="4"><span class="strip-num">2</span><div><b>Train</b> <span>· on your GPU, via Colab, HF Space or a lab server</span></div></button>
+      <button class="strip-item" type="button" data-strip-step="6"><span class="strip-num">3</span><div><b>Evaluate</b> <span>· success, speed, effort and muscle activity</span></div></button>
     </div>
   </div>
 </header>
@@ -511,7 +512,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   /* ---------------------------------------------------------------- options (from ui.py) */
   const MODELS = [
     { id: "MyoArm_nohand", name: "MyoArm (w/o hand muscles)", note: "MyoSuite arm with detailed shoulder musculature (myo_sim 0.2.3); the default for pointing.", tag: "default" },
-    { id: "MyoArm_pointing", name: "MyoArm (index finger)", note: "MyoSuite arm whose hand points: index finger straight, the other fingers curled. For buttons and touch screens.", tag: "pointing" },
+    { id: "MyoArm_pointing", name: "MyoArm (index finger pose)", note: "MyoSuite arm whose hand points: index finger straight, the other fingers curled. For buttons and touch screens.", tag: "pointing" },
     { id: "MyoArm", name: "MyoArm", note: "MyoSuite arm and hand, 63 muscles (myo_sim 0.2.3).", tag: "hand" },
     { id: "MoBL_Arms_Index", name: "MoBL-ARMS (w/o hand muscles)", note: "Shoulder, elbow and wrist with a pointing finger.", tag: "MoBL-ARMS" },
     { id: "MoBL_Arms_Hand", name: "MoBL-ARMS", note: "Adds hand and finger joints for button pressing.", tag: "MoBL-ARMS · hand" },
@@ -2446,6 +2447,8 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
     if (back && S.step !== from) go(from);
   }
   $("hero-tour").addEventListener("click", () => tourShow(0));
+  // The header strip opens its step (Design: Body, Train: Training, Evaluate: Evaluate).
+  document.querySelectorAll("[data-strip-step]").forEach((b) => b.addEventListener("click", () => { if (!S.stepOpen) setStepOpen(true); go(+b.dataset.stripStep); }));
   $("hero-preset").addEventListener("click", async (ev) => {
     const label = ev.target.textContent;
     ev.target.disabled = true;
