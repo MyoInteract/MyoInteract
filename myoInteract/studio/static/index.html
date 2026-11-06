@@ -408,7 +408,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 </header>
 
 <section class="facts" aria-label="Highlights">
-  <div class="fact"><b>Cutting-edge arm and hand models</b><span>MyoArm and MoBL-ARMS, with or without hand</span></div>
+  <div class="fact"><b>Cutting-edge arm and hand models</b><span>MyoArm and MoBL-ARMS, with or without hand muscles</span></div>
   <div class="fact"><b>Complex pointing sequences</b><span>Spheres to point at, buttons to press</span></div>
   <div class="fact"><b>Train and evaluate directly in your browser</b><span>MuJoCo in WebAssembly, nothing to install</span></div>
   <div class="fact"><b>~50 000 steps/s</b><span>4096 environments on one RTX 5090</span></div>
@@ -510,11 +510,11 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 (function () {
   /* ---------------------------------------------------------------- options (from ui.py) */
   const MODELS = [
-    { id: "MyoArm_nohand", name: "MyoArm (no hand)", note: "MyoSuite arm with detailed shoulder musculature (myo_sim 0.2.3); the default for pointing.", tag: "default" },
-    { id: "MyoArm_pointing", name: "MyoArm (pointing hand)", note: "MyoSuite arm whose hand points: index finger straight, the other fingers curled. For buttons and touch screens.", tag: "pointing" },
+    { id: "MyoArm_nohand", name: "MyoArm (w/o hand muscles)", note: "MyoSuite arm with detailed shoulder musculature (myo_sim 0.2.3); the default for pointing.", tag: "default" },
+    { id: "MyoArm_pointing", name: "MyoArm (index finger)", note: "MyoSuite arm whose hand points: index finger straight, the other fingers curled. For buttons and touch screens.", tag: "pointing" },
     { id: "MyoArm", name: "MyoArm", note: "MyoSuite arm and hand, 63 muscles (myo_sim 0.2.3).", tag: "hand" },
-    { id: "MoBL_Arms_Index", name: "MoBL-ARMS (index finger)", note: "Shoulder, elbow and wrist with a pointing finger.", tag: "MoBL-ARMS" },
-    { id: "MoBL_Arms_Hand", name: "MoBL-ARMS (full hand)", note: "Adds hand and finger joints for button pressing.", tag: "MoBL-ARMS · hand" },
+    { id: "MoBL_Arms_Index", name: "MoBL-ARMS (w/o hand muscles)", note: "Shoulder, elbow and wrist with a pointing finger.", tag: "MoBL-ARMS" },
+    { id: "MoBL_Arms_Hand", name: "MoBL-ARMS", note: "Adds hand and finger joints for button pressing.", tag: "MoBL-ARMS · hand" },
   ];
   const RESETS = [
     ["epsilon_uniform", "Rest pose with small random offsets (default)"],
@@ -688,7 +688,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
 
   /* ---------------------------------------------------------------- 1 body */
   function renderBody(ws) {
-    ws.append(h(`${head("Choose the body", "Pick the biomechanical user model. All models are muscle-actuated; pointing needs no hand, buttons and keys do.")}
+    ws.append(h(`${head("Choose the body", "Pick the biomechanical user model. All models are muscle-actuated; models without hand muscles suffice for pointing.")}
       <div class="cards" id="model-cards"></div>
       <div class="grid2">
         <div class="field"><label for="ctrl_dt">Control step</label><input id="ctrl_dt" type="number" min="0.01" max="0.2" step="0.01" value="${esc(S.bm.ctrl_dt)}" data-bind="bm.ctrl_dt"><span class="hint">Seconds between two muscle commands. 0.05 s (20 Hz) is a good default; smaller is slower to train.</span></div>
@@ -2340,7 +2340,7 @@ dialog::backdrop { background: rgba(10, 12, 20, 0.5); }
   // step first, then rings the element it explains; Back / Next / Skip (Esc) move through them.
   const TOUR = [
     { el: "#stepper", title: "Seven steps", text: "Studio takes a task from the body model to an evaluated policy. You can either follow the steps in order or jump between them as you wish." },
-    { step: 0, el: "#workspace", title: "1 · Body", text: "Pick the biomechanical user model: MyoArm or MoBL-ARMS, with or without hand. All models are muscle-actuated." },
+    { step: 0, el: "#workspace", title: "1 · Body", text: "Pick the biomechanical user model: MyoArm or MoBL-ARMS, with or without hand muscles. All models are muscle-actuated." },
     { step: 1, el: "#workspace", title: "2 · Task Setup", text: "Define an arbitrary sequence of spheres to point at or buttons to press. Target positions and sizes are drawn from the respective ranges for each episode. A Figma frame or an image can serve as the screen." },
     { step: 1, el: "#stage", title: "The 3D view", text: "Targets and their sampling areas can also be dragged here. \"Play example policy\" runs a trained policy on the selected target ranges." },
     { step: 1, el: "#scene-bar", title: "View Panel", text: "Here you can change the view and define visible layers." },

@@ -217,7 +217,7 @@ def start_params(config: dict, model: mujoco.MjModel, mjlab_env=None) -> dict:
         ]
         if len(ids) != len(_INITPOSE001_QPOS) or model.nu != len(_INITPOSE001_ACT):
             raise ValueError(
-                "the fixed start pose needs the task's environment and the MoBL-ARMS (index finger) model"
+                "the fixed start pose needs the task's environment and the MoBL-ARMS (w/o hand muscles) model"
             )
         eps = 0.1 if kind.endswith("epsilon_uniform") else 0.0
         out.update(

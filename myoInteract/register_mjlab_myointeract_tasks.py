@@ -1,7 +1,4 @@
-# Copyright (c) MyoSuite Authors. All rights reserved.
-#
-# This source code is licensed under the Apache 2 license found in the
-# LICENSE file in the root directory of this source tree.
+# Derived from https://github.com/MyoHub/myosuite (Apache License 2.0, © MyoSuite Authors).
 """Register MyoSuite tasks with mjlab's task registry so make_env(..., backend="mjlab") works.
 
 When mjlab loads this package via the mjlab.tasks entry point, this module is not
