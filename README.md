@@ -42,7 +42,7 @@ It builds on [MyoSuite](https://github.com/MyoHub/myosuite) (musculoskeletal mod
 | | |
 |---|---|
 | **Studio** (`myoInteract/studio/`) | The guided web app: body, task, sensing, reward, training and evaluation using an interactive 3D viewer, with Figma frames as optional task screens. Hosted at [myointeract.github.io/studio](https://myointeract.github.io/studio/); `myo_studio serve` adds training on your GPU |
-| **Tasks and user models** (`myoInteract/`, `myo_user/`) | Pointing and button tasks, single or in sequence, for the MoBL arm and MyoArm models, with optional muscle fatigue and motor noise |
+| **Tasks and user models** (`myoInteract/`, `myo_user/`) | Pointing and button tasks, single or in sequence, for the MoBL-ARMS and MyoArm models, with optional muscle fatigue and motor noise |
 | **Training and playback** (`myo_train`, `myo_play`) | Command-line training with ONNX checkpoints, and the Gradio task builder of the paper |
 | **Configurations** (`myo_config/`) | Hydra configs and the presets shared by Studio, the Gradio task builder and the command line |
 | **Example policies** (`myoInteract/studio/examples/`) | One trained policy per task example, including a recorded rollout |
@@ -65,7 +65,7 @@ need that backend. This release adds:
   WebAssembly), on their own task or on targets you manually set, without any installation.
 - **An installable package on MyoSuite 3.** `pip install` replaces the forked MyoSuite checkout and conda
   environment of the beta; MyoInteract uses the released `myosuite` through its public API.
-- **More user models:** MyoArm with and without the hand, next to the MoBL arm models.
+- **More user models:** MyoArm with and without the hand, next to the MoBL-ARMS models.
 - **More places to train:** your own machine, a lab server through an SSH tunnel, Google Colab
   (`tutorials/myointeract/studio_colab.ipynb`) or a Docker Space in your own Hugging Face account
   (`hf_space_studio/`).
@@ -219,4 +219,4 @@ the `myo_train` CLI, and the two-thumb range slider in a real browser (skipped w
 ## License
 
 Apache 2.0, see `LICENSE`. Parts derive from [Ingrim4/myo_user](https://github.com/Ingrim4/myo_user) (MIT). The MyoArm models come from
-[myo_sim](https://github.com/MyoHub/myo_sim), the MoBL models from [User-in-the-Box](https://github.com/User-in-the-Box/user-in-the-box).
+[myo_sim](https://github.com/MyoHub/myo_sim), the MoBL-ARMS models from [User-in-the-Box](https://github.com/User-in-the-Box/user-in-the-box).

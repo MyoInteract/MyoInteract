@@ -31,7 +31,7 @@ GEOM_TYPES = {
 }
 VISIBLE_GROUPS = 2  # MuJoCo's viewer shows geom groups 0-2 by default
 # The body models Studio offers: the MyoArm (myo_sim) without hand (the default), with a pointing hand or with
-# hand, and the MoBL arm with index finger or full hand.
+# hand, and MoBL-ARMS with index finger or full hand.
 STUDIO_MODELS = [
     "MyoArm_nohand",
     "MyoArm_pointing",
@@ -146,7 +146,7 @@ def export_scene(
                 "pos": _floats(model.geom_pos[g]),
                 "quat": _floats(model.geom_quat[g]),
                 "rgba": _floats(model.geom_rgba[g], 3),
-                # Primitive shapes are body volumes (e.g. the MoBL arm's collision capsules), bones are meshes.
+                # Primitive shapes are body volumes (e.g. MoBL-ARMS' collision capsules), bones are meshes.
                 "volume": geom_types[g] != mesh_type,
                 **(
                     {"mesh": mesh_index[int(model.geom_dataid[g])]}

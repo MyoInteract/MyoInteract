@@ -1,7 +1,7 @@
 // Muscle activity of a policy playing in the 3D view: live bars of the busiest muscles and per-episode
 // means of the muscle groups. Fed with one activation vector per control step (the live frames' tail).
 
-// Anatomical groups of the arm models' muscles (MyoArm and MoBL share the OpenSim names).
+// Anatomical groups of the arm models' muscles (MyoArm and MoBL-ARMS share the OpenSim names).
 export const MUSCLE_GROUPS = [
   ["Deltoid", /^DELT\d$/],
   ["Rotator cuff", /^(SUPSP|INFSP|SUBSC|TMIN)$/],
