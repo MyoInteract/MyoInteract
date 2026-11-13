@@ -1,6 +1,6 @@
 # Copyright (c) myoInteract Authors. All rights reserved.
 #
-# This source code is licensed under the Apache 2 license found in the
+# This source code is licensed under the GNU General Public License v3.0 found in the
 # LICENSE file in the root directory of this source tree.
 """myointeract-specific ONNX checkpoint helpers not part of MyoSuite's public API.
 
@@ -19,6 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from myoInteract.wandb_cache import normalize_wandb_run_path, wandb_checkpoint_dir
+
 from myosuite.utils.onnx_checkpoint import (
     is_onnx_checkpoint_name,
     onnx_checkpoint_sort_key,
@@ -31,15 +33,15 @@ def download_all_wandb_onnx_checkpoints(
 ) -> tuple[list[Path], list[bool]]:
     """Download **all** ONNX checkpoints from a W&B run.
 
-    Files land in ``log_path/wandb_checkpoints/{run_id}/``.  Returns
+    Files land in a cache scoped to the full entity/project/run identity. Returns
     ``(paths, was_cached)`` where both lists are sorted by
     :func:`onnx_checkpoint_sort_key` (``model_final.onnx`` last).
     ``was_cached[i]`` is ``True`` when the file already existed locally.
     """
     import wandb
 
-    run_id = str(run_path).split("/")[-1]
-    download_dir = log_path / "wandb_checkpoints" / run_id
+    run_path = normalize_wandb_run_path(run_path)
+    download_dir = wandb_checkpoint_dir(log_path, run_path)
     api = wandb.Api()
     wandb_run = api.run(str(run_path))
     files = sorted(

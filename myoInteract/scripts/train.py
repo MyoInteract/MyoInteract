@@ -97,6 +97,31 @@ _DEFAULT_CFG = (
 # ---------------------------------------------------------------------------
 # Entry-point
 # ---------------------------------------------------------------------------
+def _pop_play_flag(argv: list[str]) -> bool:
+    """Consume the play switch without consuming the next viewer option.
+
+    Keep accepting the legacy ``--play True/False`` form as well as a bare
+    switch. Explicit false values leave the remaining training arguments intact.
+    """
+    play = False
+    index = 1
+    while index < len(argv):
+        argument = argv[index]
+        if argument == "--play":
+            argv.pop(index)
+            play = True
+            if index < len(argv) and argv[index].lower() in {"true", "false"}:
+                play = argv.pop(index).lower() == "true"
+        elif argument.startswith("--play="):
+            value = argv.pop(index).split("=", 1)[1].lower()
+            if value not in {"true", "false"}:
+                raise ValueError("--play expects true or false when given a value.")
+            play = value == "true"
+        else:
+            index += 1
+    return play
+
+
 def main() -> None:
     """Console entry point ``myo_train`` (``--play`` opens the viewer instead)."""
     if os.name == "nt":
@@ -104,6 +129,7 @@ def main() -> None:
             reconfigure = getattr(stream, "reconfigure", None)
             if reconfigure is not None:
                 reconfigure(encoding="utf-8", errors="backslashreplace")
+    play = _pop_play_flag(sys.argv)
     if "--config" in sys.argv:
         index = sys.argv.index("--config")
         if index + 1 == len(sys.argv):
@@ -127,16 +153,14 @@ def main() -> None:
         elif value.startswith("--agent.seed="):
             config.run.seed = int(value.split("=", 1)[1])
     register_mjlab_myointeract_task(config)
-    if "--play" in sys.argv:
-        sys.argv.pop(sys.argv.index("--play") + 1)
-        sys.argv.pop(sys.argv.index("--play"))
+    if play:
+        from myosuite.viz.mjlab_play import PlayConfig, run_play
 
+        sys.argv[0] = sys.argv[0].removesuffix(".exe")
+        args = tyro.cli(PlayConfig, args=sys.argv[1:], config=mjlab.TYRO_FLAGS)
         # Patch the viser viewer to accumulate a "Total play time" counter
         # across episode resets (step_count resets to 0 on each reset).
-        if (
-            "--viewer" not in sys.argv
-            or sys.argv[sys.argv.index("--viewer") + 1] == "viser"
-        ):
+        if args.viewer in {"auto", "viser"}:
             from mjlab.viewer.base import BaseViewer
             from mjlab.viewer.viser.viewer import ViserPlayViewer
 
@@ -169,10 +193,7 @@ def main() -> None:
             ViserPlayViewer.reset_environment = _viser_reset_preserve_global  # type: ignore[method-assign]
             ViserPlayViewer._update_status_display = _update_status_with_play_time  # type: ignore[method-assign]
 
-        from myosuite.viz.mjlab_play import main
-
-        sys.argv[0] = sys.argv[0].removesuffix(".exe")
-        sys.exit(main())
+        run_play("myoInteractUniversal-v0", args)
 
     else:
         # This script only ever trains myoInteractUniversal-v0 (registered above), so skip

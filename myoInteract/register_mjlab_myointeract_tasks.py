@@ -1,7 +1,4 @@
-# Copyright (c) MyoSuite Authors. All rights reserved.
-#
-# This source code is licensed under the Apache 2 license found in the
-# LICENSE file in the root directory of this source tree.
+# Derived from https://github.com/MyoHub/myosuite (Apache License 2.0, © MyoSuite Authors).
 """Register MyoSuite tasks with mjlab's task registry so make_env(..., backend="mjlab") works.
 
 When mjlab loads this package via the mjlab.tasks entry point, this module is not
@@ -171,12 +168,10 @@ def _reset_joints_range_uniform(
     )
 
 
-# Fixed "ready to interact" pose for the mobl_arms_index v2.1/v2.2 17-joint arm chain
-# (all 17 joints, including the coupling/"phantom" shoulder-rhythm joints -- NOT just
-# _independent_joint_names). Mirrors the "initpose001" MJCF <key> in
-# mobl_arms_index_v2.1/v2.2_universal_myointeract.xml; keep both in sync. The mjwarp reset
-# path mjlab uses does not read MJCF keyframes, so reset_type="initpose001" below
-# applies this constant directly rather than looking up the keyframe at runtime.
+# Fixed "ready to interact" pose for the MoBL_Arms_Index 17-joint arm chain (all 17
+# joints, including the coupling/"phantom" shoulder-rhythm joints -- NOT just
+# _independent_joint_names). reset_type="initpose001" below applies this constant
+# directly; the mjwarp reset path mjlab uses does not read MJCF keyframes.
 _INITPOSE001_QPOS = (
     -6.92e-5,
     -0.293,
@@ -198,7 +193,7 @@ _INITPOSE001_QPOS = (
 )
 # Initial muscle activation for reset_type="initpose001": zero everywhere except
 # the rotator-cuff stabilizers (SUPSP=3, INFSP=4, SUBSC=5) and elbow flexors
-# (BIClong=20, BICshort=21, BRA=22, BRD=23), matching mobl_arms_index v2.1/v2.2's
+# (BIClong=20, BICshort=21, BRA=22, BRD=23), matching MoBL_Arms_Index's
 # 26-muscle actuator definition order (DELT1/2/3, SUPSP, INFSP, SUBSC, TMIN, TMAJ,
 # PECM1/2/3, LAT1/2/3, CORB, TRIlong/lat/med, ANC, SUP, BIClong, BICshort, BRA, BRD, PT, PQ).
 _INITPOSE001_ACT = tuple(
@@ -212,12 +207,12 @@ def _validate_initpose001_model(asset, n_act: int) -> None:
     if n_joints != len(_INITPOSE001_QPOS):
         raise ValueError(
             f"reset_type='initpose001*' expects a {len(_INITPOSE001_QPOS)}-joint "
-            f"model (mobl_arms_index v2.1/v2.2), got {n_joints} joints."
+            f"model (MoBL_Arms_Index), got {n_joints} joints."
         )
     if n_act != len(_INITPOSE001_ACT):
         raise ValueError(
             f"reset_type='initpose001*' expects a {len(_INITPOSE001_ACT)}-muscle "
-            f"model (mobl_arms_index v2.1/v2.2), got {n_act} actuators."
+            f"model (MoBL_Arms_Index), got {n_act} actuators."
         )
 
 
@@ -336,6 +331,8 @@ class VisitedSuccessBuffer:
         device: str = "cpu",
         sampling: str = "uniform",
     ) -> None:
+        if buffer_size < 1:
+            raise ValueError("Visited-success buffer capacity must be positive.")
         self._qpos = torch.zeros(buffer_size, nq, device=device)
         self._relative_time = torch.zeros(buffer_size, device=device)
         self._ptr = 0
@@ -345,7 +342,8 @@ class VisitedSuccessBuffer:
 
         self._qpos[0] = init_qpos.to(device=device, dtype=torch.float32)
         self._relative_time[0] = 0.0
-        self._ptr = 1
+        self._ptr = 1 % buffer_size
+        self._full = buffer_size == 1
 
     def add(self, qpos: torch.Tensor, relative_time: torch.Tensor) -> None:
         """Append `qpos` rows (n, nq) with matching `relative_time` rows (n,)."""
@@ -353,9 +351,14 @@ class VisitedSuccessBuffer:
         if n == 0:
             return
         capacity = self._qpos.shape[0]
-        idxs = torch.arange(self._ptr, self._ptr + n, device=qpos.device) % capacity
-        self._qpos[idxs] = qpos
-        self._relative_time[idxs] = relative_time
+        # Keep only the newest capacity rows. Duplicate destinations in advanced
+        # indexing have undefined write order, including on CUDA.
+        skip = max(0, n - capacity)
+        idxs = (
+            torch.arange(self._ptr + skip, self._ptr + n, device=qpos.device) % capacity
+        )
+        self._qpos[idxs] = qpos[skip:]
+        self._relative_time[idxs] = relative_time[skip:]
         if self._ptr + n >= capacity and not self._full:
             self._full = True
         self._ptr = (self._ptr + n) % capacity
@@ -498,17 +501,17 @@ class VisitedSuccessReset(ManagerTermBase):
             success = env.termination_manager.get_term("episode_success")[
                 env_ids
             ].bool()
-            if success.any():
-                succ_env_ids = env_ids[success]
-                counts = asset.visited_success_staging_count[succ_env_ids]
-                for i, env_id in enumerate(succ_env_ids.tolist()):
-                    c = int(counts[i].item())
-                    if c == 0:
-                        continue
-                    buf.add(
-                        asset.visited_success_staging_qpos[env_id, :c],
-                        asset.visited_success_staging_rel_time[env_id, :c],
-                    )
+            counts = asset.visited_success_staging_count[env_ids]
+            slots = torch.arange(
+                asset.visited_success_staging_qpos.shape[1], device=env.device
+            )
+            # Boolean indexing preserves env-major, then snapshot order, matching
+            # the former per-environment loop without one GPU scalar read per env.
+            staged = success[:, None] & (slots[None, :] < counts[:, None])
+            buf.add(
+                asset.visited_success_staging_qpos[env_ids][staged],
+                asset.visited_success_staging_rel_time[env_ids][staged],
+            )
             asset.visited_success_staging_count[env_ids] = 0
             sampled = buf.sample(n)
         else:
@@ -1318,6 +1321,8 @@ class PostureBuffer:
         device: str = "cpu",
         sampling: str = "uniform",
     ) -> None:
+        if buffer_size < 1:
+            raise ValueError("Posture buffer capacity must be positive.")
         self._qpos = torch.zeros(buffer_size, nq, device=device)
         self._qvel = torch.zeros(buffer_size, nv, device=device)
         self._act = torch.zeros(buffer_size, na, device=device)
@@ -1339,12 +1344,14 @@ class PostureBuffer:
         if n == 0:
             return
         capacity = self._qpos.shape[0]
+        skip = max(0, n - capacity)
         idxs = (
-            torch.arange(self._ptr, self._ptr + n, device=rows_qpos.device) % capacity
+            torch.arange(self._ptr + skip, self._ptr + n, device=rows_qpos.device)
+            % capacity
         )
-        self._qpos[idxs] = rows_qpos
-        self._qvel[idxs] = rows_qvel
-        self._act[idxs] = rows_act
+        self._qpos[idxs] = rows_qpos[skip:]
+        self._qvel[idxs] = rows_qvel[skip:]
+        self._act[idxs] = rows_act[skip:]
         if self._ptr + n >= capacity and not self._full:
             self._full = True
         self._ptr = (self._ptr + n) % capacity
@@ -1635,7 +1642,7 @@ class CurriculumInitialState(ManagerTermBase):
     direct act assignment) since the fixed pose spans every joint in the chain, not
     just the independent DOFs.
 
-    Model-restricted to the 17-joint/26-muscle mobl_arms_index v2.1/v2.2 family,
+    Model-restricted to the 17-joint/26-muscle MoBL_Arms_Index model,
     same guard as _reset_joints_initpose001 (initpose001 constants only make sense
     for that model).
     """
@@ -2353,12 +2360,12 @@ def _make_universal_env_cfg(config: Config, play: bool = False) -> ManagerBasedR
     #   zero                         → reset_joints_by_offset with zero offset (fixed default pose)
     #   range_uniform                → uniform sample across full joint range, ±0.05 rad·s⁻¹ vel
     #   initpose001                  → fixed "ready to interact" pose + muscle activation
-    #                                  (mobl_arms_index v2.1/v2.2 only; see _INITPOSE001_QPOS)
+    #                                  (MoBL_Arms_Index only; see _INITPOSE001_QPOS)
     #   initpose001_epsilon_uniform  → epsilon-ball around initpose001's qpos+act, not
     #                                  default_joint_pos/zero-act
     #   visited_success              → sample qpos uniformly from a buffer of states
     #                                  visited near the end of successful episodes
-    #                                  (mobl_arms_index v2.1/v2.2 only; see
+    #                                  (MoBL_Arms_Index only; see
     #                                  VisitedSuccessBuffer/VisitedSuccessReset)
     #   None                         → no joint reset across episodes
     _reset_type = config.env.task_config.reset_type

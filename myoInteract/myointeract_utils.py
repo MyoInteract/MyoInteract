@@ -187,8 +187,15 @@ def add_sphere_to_spec(
     rgba = np.ones(4)
     rgba[:3] = target_cfg.rgb
     target_size = np.ones(3) * target_size  ##TODO: deprecated -- remove
+    # Visual only. Set explicitly: after an empty-prefix attach, MuJoCo 4 gives geoms added
+    # here the parent spec's main default (colliding), not the attached body model's.
     target_body.add_geom(
-        name=target_geom_name, pos=np.zeros(3), size=target_size, rgba=rgba
+        name=target_geom_name,
+        pos=np.zeros(3),
+        size=target_size,
+        rgba=rgba,
+        contype=0,
+        conaffinity=0,
     )
     # print(f"Added target {target_geom_name} to spec")
 
@@ -398,12 +405,9 @@ _TORSO_COLL_GEOMS = (
 # see add_button_to_spec above, so this claims the NEXT bit instead of reusing it).
 TORSO_CONTACT_BIT = 2
 
-# MyoArm-lineage models (MyoArm, MyoArm_nohand, MyoArm_v2, and -- since the v2.1
-# muscle/tendon transplant -- MoBL_Arms_Index_v2.1/MoBL_Arms_Hand_v2.1, which now
-# share MyoArm's skeleton) ship these exact 4 geoms as REAL, uncommented collision
-# geometry already (verified byte-identical name/type/size/pos/euler to
-# _TORSO_COLL_GEOMS above). Only the original (non-transplanted) MoBL body files
-# ship them commented-out. Order matches _TORSO_COLL_GEOMS positionally.
+# MyoArm-lineage models (MyoArm, MyoArm_nohand) ship these exact 4 geoms as REAL,
+# uncommented collision geometry already (verified byte-identical name/type/size/pos/euler
+# to _TORSO_COLL_GEOMS above). The MoBL body files ship them commented-out. Order matches _TORSO_COLL_GEOMS positionally.
 _NATIVE_TORSO_COLL_GEOM_NAMES = (
     "thorax_coll0",
     "thorax_coll1",
@@ -463,9 +467,7 @@ def add_torso_contact_sensor_to_spec(spec: mujoco.MjSpec) -> mujoco.MjSpec:
     sensor reads exactly zero) -- a pre-existing physical contact from MyoArm's
     own authors, not something introduced by this function, and left as-is.
 
-    MyoArm-lineage models (MyoArm, MyoArm_nohand, MyoArm_v2, and -- since the
-    v2.1 muscle/tendon transplant -- MoBL_Arms_Index_v2.1/MoBL_Arms_Hand_v2.1)
-    ship the 4 torso collision geoms as real, active geometry already (named
+    MyoArm-lineage models (MyoArm, MyoArm_nohand) ship the 4 torso collision geoms as real, active geometry already (named
     `thorax_coll0`..`thorax_coll3`, `class="myoarm_coll"`), instead of MoBL's
     commented-out `torso_contact_coll_body`. In that case this function reuses
     the existing geoms (only ADDing TORSO_CONTACT_BIT to their `conaffinity`,

@@ -1,4 +1,5 @@
 import os
+import math
 
 import gradio as gr
 from mjlab.tasks.registry import load_env_cfg, load_rl_cfg
@@ -25,12 +26,15 @@ if gr.NO_RELOAD:
     from mjlab.rl import RslRlVecEnvWrapper
     from mjlab.viewer.viser.viewer import ViserPlayViewer
     from myoInteract.paths import REPO_ROOT, data_root
+    from myoInteract.wandb_cache import resolve_wandb_run_input, wandb_checkpoint_dir
     from myoInteract.myointeract_hydra_cli import (
         BM_MODEL_MAP,
         checkpoint_config_path,
         load_config_interactive,
         training_config_to_labelled_dict,
         extra_hydra_overrides,
+        button_geometry,
+        restore_button_geometry,
     )
     from myoInteract.register_mjlab_myointeract_tasks import (
         _vision_camera_recipe,
@@ -184,7 +188,7 @@ if gr.NO_RELOAD:
         # what register_mjlab_myointeract_task() actually used to build the
         # target_pos_dr event term's ranges for this model. Must NOT be a
         # hardcoded constant: different bm_models use different ref_site values
-        # (e.g. myoarm/myoarm_v2 use "R.Shoulder_marker", not MoBL's "humphant").
+        # (e.g. the MyoArm models use "R.Shoulder_marker", not MoBL's "humphant").
         target_origin = _compute_target_origin(config)
 
         try:
@@ -535,13 +539,13 @@ def _resolve_local_run_dir(val: str) -> tuple[str | None, str | None]:
     Returns (None, None) when the directory cannot be resolved.
     """
     val = val.strip()
-    run_name = Path(val).name  # works for both absolute paths and bare names
     if os.path.isdir(val):
-        return run_name, os.path.abspath(val)
+        resolved = os.path.abspath(val)
+        return resolved, resolved
     for base_dir in (LOG_DIR, CHECKPOINT_PATH):
-        candidate = os.path.join(base_dir, run_name)
+        candidate = os.path.join(base_dir, val)
         if os.path.isdir(candidate):
-            return run_name, candidate
+            return val, os.path.abspath(candidate)
     return None, None
 
 
@@ -570,30 +574,20 @@ def load_policy_input_changed(val):
     if not val or val.endswith(".onnx") or val.endswith(".pt"):
         return gr.update(), gr.update()
 
-    # ── Wandb URL / run-ID ────────────────────────────────────────────────
-    run_id = None
-    if val.startswith("https://wandb.ai/"):
-        # e.g. https://wandb.ai/hci-biomechsims/mjlab/runs/lgd335xy
-        parts = val[len("https://wandb.ai/") :].replace("/runs/", "/").split("/")
-        run_id = parts[-1] if parts else None
-    elif not val.startswith("/") and "/" in val:
-        # entity/project/run_id or entity/project/runs/run_id
-        parts = val.replace("/runs/", "/").split("/")
-        run_id = parts[-1] if parts else None
-    elif (
-        not val.startswith("/")
-        and os.sep not in val
-        and not _resolve_local_run_dir(val)[1]
-    ):
-        # Bare run ID
-        run_id = val
-
-    if run_id:
-        # Only populate if the download dir already exists locally.
-        rel_run = os.path.join("wandb_checkpoints", run_id)
-        _, resolved_dir = _resolve_local_run_dir(rel_run)
-        if resolved_dir is None:
+    # ── W&B URL / run path / bare ID ──────────────────────────────────────
+    run_path = None
+    if not _resolve_local_run_dir(val)[1]:
+        try:
+            run_path = resolve_wandb_run_input(
+                val, WANDB_DEFAULT_ENTITY, WANDB_DEFAULT_PROJECT
+            )
+        except ValueError:
             return gr.update(), gr.update()
+    if run_path:
+        resolved_dir = wandb_checkpoint_dir(Path(LOG_DIR), run_path)
+        if not resolved_dir.is_dir():
+            return gr.update(), gr.update()
+        rel_run = os.path.relpath(resolved_dir, LOG_DIR)
         onnx_files = _list_onnx_files_in_dir(resolved_dir)
         run_choices = get_available_checkpoints(show_training_ckpts=True)
         if rel_run not in run_choices:
@@ -764,13 +758,9 @@ class BMParameters:
     mj_impl_choices = ("mjlab",)
     bm_model_choices = (
         "MoBL_Arms_Index",
-        "MoBL_Arms_Index_v2.1",
-        "MoBL_Arms_Index_v2.2",
         "MoBL_Arms_Hand",
-        "MoBL_Arms_Hand_v2.1",
         "MyoArm_nohand",
         "MyoArm",
-        "MyoArm_v2",
         "MyoArm_reach",
         "MyoArm_pointing",
     )
@@ -1103,7 +1093,7 @@ class BoxParameters:
         return sanity_check
 
     @classmethod
-    def parse_values(cls, i, all_args):
+    def parse_values(cls, i, all_args, stored_geometry=None):
         (
             box_position_x,
             box_position_y,
@@ -1132,19 +1122,21 @@ class BoxParameters:
         )
         if not sanity_check:
             return False, []
+        geometry = restore_button_geometry(
+            {"orientation_angle": orientation_angle}, stored_geometry or {}
+        )
+        euler, half_depth = button_geometry(geometry)
         overrides = []
         overrides.append(
             f"env.task_config.targets.target_{i}.position=[[{box_position_x[0]},{box_position_y[0]},{box_position_z[0]}],[{box_position_x[1]},{box_position_y[1]},{box_position_z[1]}]]"
         )
         overrides.append(
-            f"env.task_config.targets.target_{i}.size=[[{0.5*box_size_x_slider[0]},{0.5*box_size_y_slider[0]},0.01],[{0.5*box_size_x_slider[1]},{0.5*box_size_y_slider[1]},0.01]]"
+            f"env.task_config.targets.target_{i}.size=[[{0.5*box_size_x_slider[0]},{0.5*box_size_y_slider[0]},{half_depth[0]}],[{0.5*box_size_x_slider[1]},{0.5*box_size_y_slider[1]},{half_depth[1]}]]"
         )
         overrides.append(
             f"env.task_config.targets.target_{i}.min_touch_force={min_touch_force}"
         )
-        overrides.append(
-            f"env.task_config.targets.target_{i}.euler=[0,{-orientation_angle*np.pi/180},0]"
-        )
+        overrides.append(f"env.task_config.targets.target_{i}.euler={euler}")
         overrides.append(
             f"env.task_config.targets.target_{i}.rgb=[{rgb[0]},{rgb[1]},{rgb[2]}]"
         )
@@ -1871,6 +1863,7 @@ class ConfigSaver:
     def __init__(self):
         self.my_configs = self.check_folder()
         self.run_inputs = None
+        self.button_geometry = {}
 
     def to_labelled_dict(self, data):
         labelled_dict = {}
@@ -1888,6 +1881,9 @@ class ConfigSaver:
             item_dict["radio"] = radio_values[i]
             item_dict["box"] = dict(
                 zip(BoxParameters.fields(), BoxParameters.get_my_args(i, data))
+            )
+            item_dict["box"] = restore_button_geometry(
+                item_dict["box"], self.button_geometry.get(i, {})
             )
             item_dict["sphere"] = dict(
                 zip(SphereParameters.fields(), SphereParameters.get_my_args(i, data))
@@ -1942,11 +1938,28 @@ class ConfigSaver:
             labelled_data.get(f"target_{i+1}") or self._default_target(i)
             for i in range(MAX_TARGETS)
         ]
+        # These fields have no widgets. Keep them outside the flat form values so
+        # loading a screen-mounted button does not shift every following input.
+        self.button_geometry = {
+            i: {
+                key: t["box"][key]
+                for key in ("euler", "box_thickness")
+                if key in (t.get("box") or {})
+            }
+            for i, t in enumerate(targets)
+        }
         for t in targets:
             data.append(t["radio"])
         for i, t in enumerate(targets):
             box = t.get("box") or self._default_target(i)["box"]
-            data.extend(box.values())
+            if box.get("euler") is not None:
+                # Studio's explicit screen rotation overrides its legacy angle.
+                # Initialize the widget from that pose before allowing edits.
+                box = {
+                    **box,
+                    "orientation_angle": -float(box["euler"][1]) * 180 / math.pi,
+                }
+            data.extend(box[key] for key in BoxParameters.fields())
         for i, t in enumerate(targets):
             sphere = t.get("sphere") or self._default_target(i)["sphere"]
             data.extend(sphere.values())
@@ -2573,7 +2586,9 @@ def get_ui(project_name, run_state=RunState(), use_legacy_rendering=False):
                 )
 
                 if target_type == "Box":
-                    sanity_check, overrides = BoxParameters.parse_values(i, args)
+                    sanity_check, overrides = BoxParameters.parse_values(
+                        i, args, config_saver.button_geometry.get(i)
+                    )
                     all_sanity_checks &= sanity_check
                     if not sanity_check:
                         return False, []
@@ -3091,17 +3106,13 @@ def get_ui(project_name, run_state=RunState(), use_legacy_rendering=False):
 
             target_value = (
                 5_000_000
-                + (
-                    bm_model
-                    in ("MoBL_Arms_Hand", "MoBL_Arms_Hand_v2.1", "MyoArm", "MyoArm_v2")
-                )
+                + (bm_model in ("MoBL_Arms_Hand", "MyoArm"))
                 * 3_000_000  # number to be validated
                 + (
                     bm_model
                     in (
                         "MyoArm_nohand",
                         "MyoArm",
-                        "MyoArm_v2",
                         "MyoArm_reach",
                         "MyoArm_pointing",
                     )
@@ -3345,23 +3356,12 @@ def get_ui(project_name, run_state=RunState(), use_legacy_rendering=False):
 
             try:
                 if wandb_or_path:
-                    # ── W&B URL or run path ───────────────────────────────
-                    if wandb_or_path.startswith("https://wandb.ai/"):
-                        # Full URL: https://wandb.ai/entity/project/runs/RUN_ID
-                        run_path = wandb_or_path[len("https://wandb.ai/") :]
-                        run_path = run_path.replace("/runs/", "/")
-                    elif not wandb_or_path.startswith("/") and "/" in wandb_or_path:
-                        # Already entity/project/run_id format
-                        run_path = wandb_or_path
-                    elif (
-                        not wandb_or_path.startswith("/")
-                        and os.sep not in wandb_or_path
-                        and not _resolve_local_run_dir(wandb_or_path)[1]
-                    ):
-                        # Bare run ID — expand with defaults
-                        run_path = f"{WANDB_DEFAULT_ENTITY}/{WANDB_DEFAULT_PROJECT}/{wandb_or_path}"
-                    else:
-                        run_path = None
+                    # Use the same identity for dropdown lookup and downloads.
+                    run_path = None
+                    if not _resolve_local_run_dir(wandb_or_path)[1]:
+                        run_path = resolve_wandb_run_input(
+                            wandb_or_path, WANDB_DEFAULT_ENTITY, WANDB_DEFAULT_PROJECT
+                        )
 
                     if run_path:
                         import wandb as _wandb
