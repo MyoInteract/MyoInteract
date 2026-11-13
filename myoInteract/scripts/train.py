@@ -21,7 +21,7 @@ from myosuite.integrations.musclemimic.mjlab_policy_runner import (
 from myosuite.utils.onnx_checkpoint import extract_checkpoint_from_onnx
 
 from myoInteract.myointeract_hydra_cli import (
-    gradio_json_to_overrides,
+    training_task_overrides,
     load_config_interactive,
 )
 from myoInteract.register_mjlab_myointeract_tasks import (
@@ -140,7 +140,8 @@ def main() -> None:
         cfg_path = _DEFAULT_CFG
     with cfg_path.open(encoding="utf-8") as stream:
         raw = json.load(stream)
-    config = load_config_interactive(gradio_json_to_overrides(raw))
+    recipe_overrides = training_task_overrides(raw, sys.argv[1:])
+    config = load_config_interactive(recipe_overrides)
     # The seed also participates in the task's model recipe, which is captured
     # during registration (before tyro can construct its environment defaults).
     # Resolve this one native option early so saved/evaluated task recipes agree.
@@ -288,7 +289,7 @@ def main() -> None:
         dump_yaml(log_dir / "params" / "agent.yaml", asdict(args.agent))
         # Keep task reconstruction and the actual CLI-selected network architecture
         # with every run, including runs started without Studio.
-        overrides = gradio_json_to_overrides(raw)
+        overrides = list(recipe_overrides)
         overrides.extend(
             [
                 f"rl.num_envs={args.env.scene.num_envs}",

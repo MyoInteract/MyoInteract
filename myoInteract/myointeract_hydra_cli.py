@@ -205,6 +205,90 @@ def checkpoint_config_path(checkpoint_dir: str | Path) -> Path:
     return directory / CONFIG_SIDECAR_NAME
 
 
+def checkpoint_task_overrides(overrides: list[str]) -> list[str]:
+    """Retain the actual fixed vision recipe used by unversioned checkpoints."""
+    values = [_normalize_vision_recipe_override(value) for value in overrides]
+    if any(value.lstrip("+").startswith("vision.recipe_version=") for value in values):
+        return values
+    config = load_config_interactive(values)
+    if config.vision.enabled:
+        values.append("vision.recipe_version=1")
+    return values
+
+
+def _normalize_vision_recipe_override(value: str) -> str:
+    key, separator, setting = value.partition("=")
+    if key.lstrip("+") in ("vision.recipe_version", "env.vision.recipe_version"):
+        return f"vision.recipe_version={setting}" if separator else value
+    return value
+
+
+def training_task_overrides(preset: dict, argv: list[str]) -> list[str]:
+    """Resolve continuation's sensing recipe before the native CLI builds its defaults."""
+    import json
+
+    values = gradio_json_to_overrides(preset)
+    explicit_recipe = any(
+        value.lstrip("+").split("=", 1)[0]
+        in ("vision.recipe_version", "env.vision.recipe_version")
+        for value in preset.get("extra_overrides", [])
+    )
+    checkpoint = None
+    automatic = False
+    for index, argument in enumerate(argv):
+        key, separator, setting = argument.partition("=")
+        if key in ("--resume-checkpoint", "--agent.resume"):
+            if not separator:
+                setting = argv[index + 1] if index + 1 < len(argv) else ""
+            if key == "--resume-checkpoint":
+                checkpoint = setting or None
+            else:
+                automatic = setting.lower() == "true"
+    if explicit_recipe or not (checkpoint or automatic):
+        return values
+    requested = load_config_interactive(values).vision
+    if checkpoint is not None:
+        sidecar = checkpoint_config_path(Path(checkpoint).expanduser().parent)
+        if sidecar.is_file():
+            saved = json.loads(sidecar.read_text(encoding="utf-8"))
+            source = saved.get("env", {}).get("vision", saved.get("vision", {}))
+            if bool(source.get("enabled", False)) != bool(requested.enabled):
+                raise ValueError(
+                    "The resume checkpoint and preset must agree on whether vision is enabled."
+                )
+            return values + _vision_config_overrides(saved)
+        if requested.enabled:
+            raise ValueError(
+                "Vision continuation needs the checkpoint's myointeract_config.json sidecar. "
+                "Restore it or set vision.recipe_version explicitly in the preset's extra_overrides."
+            )
+    elif requested.enabled:
+        raise ValueError(
+            "Vision auto-resume needs --resume-checkpoint to inspect its saved recipe, "
+            "or an explicit vision.recipe_version in the preset's extra_overrides."
+        )
+    return values
+
+
+def _vision_config_overrides(config_dict: dict) -> list[str]:
+    env = config_dict.get("env", {})
+    vision = env.get("vision", config_dict.get("vision", {}))
+    if not vision.get("enabled", False):
+        return []
+    values = [f"vision.recipe_version={vision.get('recipe_version', 1)}"]
+    for key in (
+        "vision_mode",
+        "render_width",
+        "render_height",
+        "depth_min",
+        "depth_cutoff",
+        "enabled_geom_groups",
+    ):
+        if key in vision:
+            values.append(f"vision.{key}={vision[key]}")
+    return values
+
+
 def load_config_from_checkpoint_dir(
     checkpoint_dir: str, config_path: str | None = None
 ) -> ConfigDict:
@@ -448,6 +532,7 @@ def gradio_json_to_overrides(cfg: dict) -> list[str]:
         f"env.task_config.omni_keys={omni_selected}",
     ]
     if vision_enabled:
+        overrides.append("vision.recipe_version=2")
         if "rgb" in vision_selected and "depth" in vision_selected:
             mode = "rgbd"
         elif "rgb" in vision_selected:
@@ -533,7 +618,10 @@ def gradio_json_to_overrides(cfg: dict) -> list[str]:
 
     # Settings the UI has no control for (e.g. the *_v2 task examples' reward terms): Hydra
     # overrides listed in the preset itself, applied last.
-    overrides += list(cfg.get("extra_overrides", []))
+    overrides += [
+        _normalize_vision_recipe_override(value)
+        for value in cfg.get("extra_overrides", [])
+    ]
     return overrides
 
 
@@ -606,7 +694,9 @@ def training_config_to_labelled_dict(config_dict: dict) -> dict:
     omni_bools = [k in omni_active for k in _POSSIBLE_OMNI_KEYS]
     if vis_enabled:
         vision_bools = [
-            vis_mode in ("rgb", "rgbd") if k == "rgb" else vis_mode in ("depth", "rgbd")
+            vis_mode in ("rgb", "rgbd")
+            if k == "rgb"
+            else vis_mode in ("depth", "rgbd", "depth_w_aux_task")
             for k in _POSSIBLE_VISION_KEYS
         ]
     else:
@@ -743,6 +833,7 @@ def training_config_to_labelled_dict(config_dict: dict) -> dict:
         "task": task_dict,
         "obs": obs_dict,
         "reward": reward_dict,
+        "extra_overrides": _vision_config_overrides(config_dict),
     }
 
 
@@ -845,7 +936,7 @@ def extra_hydra_overrides(config_dict: dict) -> list:
         else:
             overrides.append(f"rl.{key}={val}")
 
-    return overrides
+    return overrides + _vision_config_overrides(config_dict)
 
 
 # ---------------------------------------------------------------------------

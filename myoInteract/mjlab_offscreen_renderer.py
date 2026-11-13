@@ -35,6 +35,14 @@ def _sync_render_data(_sim, _render_mj_data):
     if _sim.mj_model.nsite > 0:
         _render_mj_data.site_xpos[:] = db.site_xpos[0].cpu().numpy()
         _render_mj_data.site_xmat[:] = db.site_xmat[0].cpu().numpy().reshape(-1, 9)
+    if _sim.mj_model.ntendon > 0:
+        # MuJoCo draws spatial tendons from their wrapping path, independently of
+        # body/site transforms. Fresh CPU MjData otherwise has no tendon paths.
+        for name in ("ten_wrapadr", "ten_wrapnum", "wrap_obj", "wrap_xpos"):
+            destination = getattr(_render_mj_data, name)
+            destination[:] = (
+                getattr(db, name)[0].cpu().numpy().reshape(destination.shape)
+            )
 
     # geom_rgba is a *model* field, not data -- but for any task that writes per-env
     # colors at runtime (e.g. SequentialTaskLogic highlighting the current target via

@@ -164,7 +164,7 @@ def test_renderer_transfers_only_environment_zero(
         for name, shape in shapes.items()
     }
     rendered = SimpleNamespace(**render_values)
-    model = SimpleNamespace(nsite=1, geom_rgba=np.zeros((3, 4)))
+    model = SimpleNamespace(nsite=1, ntendon=0, geom_rgba=np.zeros((3, 4)))
     sim = SimpleNamespace(
         data=SimpleNamespace(**values),
         mj_model=model,

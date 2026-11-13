@@ -161,3 +161,29 @@ def test_native_timing_override_is_rejected_before_physics_construction(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _exercise(tmp_path, monkeypatch, timing_error=True)
+
+
+def test_registered_and_saved_training_recipe_are_identical(tmp_path, monkeypatch):
+    from myoInteract.myointeract_hydra_cli import gradio_json_to_overrides
+
+    monkeypatch.setattr(
+        train,
+        "training_task_overrides",
+        lambda raw, argv: gradio_json_to_overrides(raw)
+        + ["vision=enabled", "vision.recipe_version=1"],
+    )
+    compose = train.load_config_interactive
+    selected = []
+
+    def capture(overrides):
+        config = compose(overrides)
+        selected.append(config.vision.recipe_version)
+        return config
+
+    monkeypatch.setattr(train, "load_config_interactive", capture)
+    _, _, runner = _exercise(tmp_path, monkeypatch)
+    saved = json.loads((runner.output / "original_hydra_config.json").read_text())
+    resolved = json.loads((runner.output / "myointeract_config.json").read_text())
+    assert "vision.recipe_version=1" in saved
+    assert resolved["vision"]["recipe_version"] == 1
+    assert selected == [1, 1]
