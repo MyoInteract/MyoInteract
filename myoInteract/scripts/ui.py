@@ -26,6 +26,7 @@ if gr.NO_RELOAD:
     from mjlab.rl import RslRlVecEnvWrapper
     from mjlab.viewer.viser.viewer import ViserPlayViewer
     from myoInteract.paths import REPO_ROOT, data_root
+    from myoInteract.wandb_cache import resolve_wandb_run_input, wandb_checkpoint_dir
     from myoInteract.myointeract_hydra_cli import (
         BM_MODEL_MAP,
         checkpoint_config_path,
@@ -528,13 +529,13 @@ def _resolve_local_run_dir(val: str) -> tuple[str | None, str | None]:
     Returns (None, None) when the directory cannot be resolved.
     """
     val = val.strip()
-    run_name = Path(val).name  # works for both absolute paths and bare names
     if os.path.isdir(val):
-        return run_name, os.path.abspath(val)
+        resolved = os.path.abspath(val)
+        return resolved, resolved
     for base_dir in (LOG_DIR, CHECKPOINT_PATH):
-        candidate = os.path.join(base_dir, run_name)
+        candidate = os.path.join(base_dir, val)
         if os.path.isdir(candidate):
-            return run_name, candidate
+            return val, os.path.abspath(candidate)
     return None, None
 
 
@@ -563,30 +564,20 @@ def load_policy_input_changed(val):
     if not val or val.endswith(".onnx") or val.endswith(".pt"):
         return gr.update(), gr.update()
 
-    # ── Wandb URL / run-ID ────────────────────────────────────────────────
-    run_id = None
-    if val.startswith("https://wandb.ai/"):
-        # e.g. https://wandb.ai/hci-biomechsims/mjlab/runs/lgd335xy
-        parts = val[len("https://wandb.ai/") :].replace("/runs/", "/").split("/")
-        run_id = parts[-1] if parts else None
-    elif not val.startswith("/") and "/" in val:
-        # entity/project/run_id or entity/project/runs/run_id
-        parts = val.replace("/runs/", "/").split("/")
-        run_id = parts[-1] if parts else None
-    elif (
-        not val.startswith("/")
-        and os.sep not in val
-        and not _resolve_local_run_dir(val)[1]
-    ):
-        # Bare run ID
-        run_id = val
-
-    if run_id:
-        # Only populate if the download dir already exists locally.
-        rel_run = os.path.join("wandb_checkpoints", run_id)
-        _, resolved_dir = _resolve_local_run_dir(rel_run)
-        if resolved_dir is None:
+    # ── W&B URL / run path / bare ID ──────────────────────────────────────
+    run_path = None
+    if not _resolve_local_run_dir(val)[1]:
+        try:
+            run_path = resolve_wandb_run_input(
+                val, WANDB_DEFAULT_ENTITY, WANDB_DEFAULT_PROJECT
+            )
+        except ValueError:
             return gr.update(), gr.update()
+    if run_path:
+        resolved_dir = wandb_checkpoint_dir(Path(LOG_DIR), run_path)
+        if not resolved_dir.is_dir():
+            return gr.update(), gr.update()
+        rel_run = os.path.relpath(resolved_dir, LOG_DIR)
         onnx_files = _list_onnx_files_in_dir(resolved_dir)
         run_choices = get_available_checkpoints(show_training_ckpts=True)
         if rel_run not in run_choices:
@@ -3351,23 +3342,12 @@ def get_ui(project_name, run_state=RunState(), use_legacy_rendering=False):
 
             try:
                 if wandb_or_path:
-                    # ── W&B URL or run path ───────────────────────────────
-                    if wandb_or_path.startswith("https://wandb.ai/"):
-                        # Full URL: https://wandb.ai/entity/project/runs/RUN_ID
-                        run_path = wandb_or_path[len("https://wandb.ai/") :]
-                        run_path = run_path.replace("/runs/", "/")
-                    elif not wandb_or_path.startswith("/") and "/" in wandb_or_path:
-                        # Already entity/project/run_id format
-                        run_path = wandb_or_path
-                    elif (
-                        not wandb_or_path.startswith("/")
-                        and os.sep not in wandb_or_path
-                        and not _resolve_local_run_dir(wandb_or_path)[1]
-                    ):
-                        # Bare run ID — expand with defaults
-                        run_path = f"{WANDB_DEFAULT_ENTITY}/{WANDB_DEFAULT_PROJECT}/{wandb_or_path}"
-                    else:
-                        run_path = None
+                    # Use the same identity for dropdown lookup and downloads.
+                    run_path = None
+                    if not _resolve_local_run_dir(wandb_or_path)[1]:
+                        run_path = resolve_wandb_run_input(
+                            wandb_or_path, WANDB_DEFAULT_ENTITY, WANDB_DEFAULT_PROJECT
+                        )
 
                     if run_path:
                         import wandb as _wandb
