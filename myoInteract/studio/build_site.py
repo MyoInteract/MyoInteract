@@ -19,13 +19,27 @@ from myoInteract.studio.examples import EXAMPLES, PAGE_FILES, SIM_FILES, list_ex
 from myoInteract.studio.scene import STUDIO_MODELS, write_static_scenes
 from myoInteract.studio.server import STATIC
 
+# Cookie-free visit counts for the hosted page only (GoatCounter: path, referrer, browser, country).
+ANALYTICS = '<script data-goatcounter="https://myointeract.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>'
 
-def build_site(out: Path, models: list[str] = STUDIO_MODELS) -> None:
-    """Write the static site to ``out`` (replaced if it exists)."""
+
+def build_site(
+    out: Path, models: list[str] = STUDIO_MODELS, analytics: bool = True
+) -> None:
+    """Write the static site to ``out`` (replaced if it exists).
+
+    Args:
+        out: Site directory.
+        models: Body models whose scenes the site ships.
+        analytics: Add the GoatCounter visit counter to the page.
+    """
     if out.exists():
         shutil.rmtree(out)
     shutil.copytree(STATIC, out / "static", ignore=shutil.ignore_patterns("index.html"))
-    shutil.copy(STATIC / "index.html", out / "index.html")
+    page = (STATIC / "index.html").read_text()
+    if analytics:
+        page = page.replace("</head>", f"{ANALYTICS}\n</head>", 1)
+    (out / "index.html").write_text(page)
     (out / ".nojekyll").write_text("")  # serve the files as they are
     write_static_scenes(out / "scenes", models)
     examples = [e for e in list_examples() if e["replay"]["hello"]["model"] in models]
@@ -52,8 +66,11 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--models", nargs="*", default=STUDIO_MODELS)
+    p.add_argument(
+        "--no-analytics", action="store_true", help="leave out the visit counter"
+    )
     args = p.parse_args()
-    build_site(args.out, args.models)
+    build_site(args.out, args.models, analytics=not args.no_analytics)
 
 
 if __name__ == "__main__":

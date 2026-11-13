@@ -18,7 +18,7 @@ from myoInteract.studio.examples import (  # noqa: E402
     list_examples,
 )  # noqa: E402
 from myoInteract.studio.runs import RunManager, metrics  # noqa: E402
-from myoInteract.studio.server import BUNDLED_PRESETS, create_app  # noqa: E402
+from myoInteract.studio.server import BUNDLED_PRESETS, STATIC, create_app  # noqa: E402
 
 POINTING = json.loads((BUNDLED_PRESETS / "pointing.json").read_text())
 
@@ -113,13 +113,13 @@ def test_viewer_needs_a_preset_or_a_known_run(client: TestClient) -> None:
     )  # proxied viewer page: nothing running yet
 
 
-def test_converter_reads_the_total_steps_and_the_v2_models() -> None:
+def test_converter_reads_the_total_steps_and_the_body_model() -> None:
     preset = json.loads(json.dumps(POINTING))
     preset["rl"]["Number of Total Training Steps"] = 1_234_000
-    preset["bm"]["bm_model"] = "MoBL_Arms_Index_v2.2"
+    preset["bm"]["bm_model"] = "MoBL_Arms_Hand"
     overrides = gradio_json_to_overrides(preset)
     assert "rl.num_timesteps=1234000" in overrides
-    assert any("mobl_arms_index_v2.2_universal" in o for o in overrides)
+    assert any("mobl_arms_hand_universal" in o for o in overrides)
 
 
 def test_metrics_turn_termination_counts_into_a_success_rate(tmp_path: Path) -> None:
@@ -371,6 +371,9 @@ def test_site_ships_the_examples_without_their_checkpoints(tmp_path: Path) -> No
         if e["replay"]["hello"]["model"] == "MyoArm_nohand"
     ]
     assert not list((tmp_path / "site").rglob("*.onnx"))
+    # the visit counter is on the hosted page only, never on the page myo_studio serve sends
+    assert "goatcounter" in (tmp_path / "site" / "index.html").read_text()
+    assert "goatcounter" not in (STATIC / "index.html").read_text()
     for example in index:
         shipped = {
             p.name for p in (tmp_path / "site" / "examples" / example["name"]).iterdir()
@@ -536,6 +539,68 @@ def test_page_side_fatigue_step_is_myosuites() -> None:
         ctrl = theirs.step(torch.tensor(e)[None], task["ctrl_dt"])[0].numpy()
         assert np.abs(mine - ctrl).max() < 1e-5
     assert np.abs(ref.MF - theirs.MF[0].numpy()).max() < 1e-5 and ref.MF.max() > 0.01
+
+
+def test_page_fatigue_step_matches_myo_sim_exact_step() -> None:
+    """sim.js's closed-form 3CC-r step equals myo-sim's, across the free, MR-limited and rest regimes."""
+    import shutil  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    import numpy as np  # noqa: PLC0415
+
+    fatigue = pytest.importorskip("myo_sim.physics.fatigue")
+    if not hasattr(fatigue, "three_cc_r_step"):
+        pytest.skip("myo-sim without the exact fatigue step")
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the page's fatigue step")
+    rng = np.random.default_rng(1)
+    n, dt, threshold = 4000, 0.05, fatigue.FATIGUE_REST_THRESHOLD
+    tl = rng.uniform(0, 1, n) * rng.choice([0, 1], n, p=[0.2, 0.8])  # a fifth at rest
+    ma = rng.uniform(0, 1, n) * rng.choice([1, 0.3], n)
+    # half near the MR limit (MF around 1 - TL), where the step splits into regimes
+    mf = np.where(
+        rng.random(n) < 0.5,
+        np.clip((1 - tl) * rng.uniform(0.9, 1.1, n), 0, 1),
+        rng.uniform(0, 1, n),
+    )
+    mf = np.minimum(mf, 1 - ma)
+    params = {
+        "F": rng.uniform(0.005, 0.03, n),
+        "R": rng.uniform(0.002, 0.02, n),
+        "r": rng.uniform(5, 30, n),
+        "tauact": rng.uniform(0.01, 0.02, n),
+        "taudeact": rng.uniform(0.03, 0.06, n),
+    }
+    expected = fatigue.three_cc_r_step(
+        np,
+        ma,
+        mf,
+        tl,
+        dt=dt,
+        rest_threshold=threshold,
+        **params,
+    )
+    cases = [
+        {
+            "MA": ma[i],
+            "MF": mf[i],
+            "TL": tl[i],
+            "rest_threshold": threshold,
+            "params": {k: v[i] for k, v in params.items()} | {"dt": dt},
+        }
+        for i in range(n)
+    ]
+    out = subprocess.run(
+        [node, str(Path(__file__).parent / "studio_fatigue_step.mjs")],
+        input=json.dumps({"cases": cases}, default=float),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    page = np.array(json.loads(out.stdout))
+    assert np.abs(page[:, 0] - expected[0]).max() < 1e-9  # MA
+    assert np.abs(page[:, 1] - expected[2]).max() < 1e-9  # MF (expected is MA, MR, MF)
 
 
 @pytest.fixture

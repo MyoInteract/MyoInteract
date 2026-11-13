@@ -310,23 +310,8 @@ BM_MODEL_MAP = {
         "fingertip",
         "humphant",
     ),
-    "MoBL_Arms_Index_v2.1": (
-        "myo_user/envs/myo/assets/arm/mobl_arms_index_v2.1_universal_myointeract.xml",
-        "fingertip",
-        "humphant",
-    ),
-    "MoBL_Arms_Index_v2.2": (
-        "myo_user/envs/myo/assets/arm/mobl_arms_index_v2.2_universal_myointeract.xml",
-        "fingertip",
-        "humphant",
-    ),
     "MoBL_Arms_Hand": (
         "myo_user/envs/myo/assets/arm/mobl_arms_hand_universal_myointeract.xml",
-        "IFtip",
-        "humphant",
-    ),
-    "MoBL_Arms_Hand_v2.1": (
-        "myo_user/envs/myo/assets/arm/mobl_arms_hand_v2.1_universal_myointeract.xml",
         "IFtip",
         "humphant",
     ),
@@ -338,11 +323,6 @@ BM_MODEL_MAP = {
     ),
     "MyoArm": (
         "myosuite/envs/myo/assets/arm/myoarm_universal_myointeract.xml",
-        "IFtip",
-        "R.Shoulder_marker",
-    ),
-    "MyoArm_v2": (
-        "myo_user/envs/myo/assets/arm/myoarm_v2_universal_myointeract.xml",
         "IFtip",
         "R.Shoulder_marker",
     ),

@@ -1,7 +1,4 @@
-# Copyright (c) MyoSuite Authors. All rights reserved.
-#
-# This source code is licensed under the Apache 2 license found in the
-# LICENSE file in the root directory of this source tree.
+# Derived from https://github.com/MyoHub/myosuite (Apache License 2.0, © MyoSuite Authors).
 """Register MyoSuite tasks with mjlab's task registry so make_env(..., backend="mjlab") works.
 
 When mjlab loads this package via the mjlab.tasks entry point, this module is not
@@ -171,12 +168,10 @@ def _reset_joints_range_uniform(
     )
 
 
-# Fixed "ready to interact" pose for the mobl_arms_index v2.1/v2.2 17-joint arm chain
-# (all 17 joints, including the coupling/"phantom" shoulder-rhythm joints -- NOT just
-# _independent_joint_names). Mirrors the "initpose001" MJCF <key> in
-# mobl_arms_index_v2.1/v2.2_universal_myointeract.xml; keep both in sync. The mjwarp reset
-# path mjlab uses does not read MJCF keyframes, so reset_type="initpose001" below
-# applies this constant directly rather than looking up the keyframe at runtime.
+# Fixed "ready to interact" pose for the MoBL_Arms_Index 17-joint arm chain (all 17
+# joints, including the coupling/"phantom" shoulder-rhythm joints -- NOT just
+# _independent_joint_names). reset_type="initpose001" below applies this constant
+# directly; the mjwarp reset path mjlab uses does not read MJCF keyframes.
 _INITPOSE001_QPOS = (
     -6.92e-5,
     -0.293,
@@ -198,7 +193,7 @@ _INITPOSE001_QPOS = (
 )
 # Initial muscle activation for reset_type="initpose001": zero everywhere except
 # the rotator-cuff stabilizers (SUPSP=3, INFSP=4, SUBSC=5) and elbow flexors
-# (BIClong=20, BICshort=21, BRA=22, BRD=23), matching mobl_arms_index v2.1/v2.2's
+# (BIClong=20, BICshort=21, BRA=22, BRD=23), matching MoBL_Arms_Index's
 # 26-muscle actuator definition order (DELT1/2/3, SUPSP, INFSP, SUBSC, TMIN, TMAJ,
 # PECM1/2/3, LAT1/2/3, CORB, TRIlong/lat/med, ANC, SUP, BIClong, BICshort, BRA, BRD, PT, PQ).
 _INITPOSE001_ACT = tuple(
@@ -212,12 +207,12 @@ def _validate_initpose001_model(asset, n_act: int) -> None:
     if n_joints != len(_INITPOSE001_QPOS):
         raise ValueError(
             f"reset_type='initpose001*' expects a {len(_INITPOSE001_QPOS)}-joint "
-            f"model (mobl_arms_index v2.1/v2.2), got {n_joints} joints."
+            f"model (MoBL_Arms_Index), got {n_joints} joints."
         )
     if n_act != len(_INITPOSE001_ACT):
         raise ValueError(
             f"reset_type='initpose001*' expects a {len(_INITPOSE001_ACT)}-muscle "
-            f"model (mobl_arms_index v2.1/v2.2), got {n_act} actuators."
+            f"model (MoBL_Arms_Index), got {n_act} actuators."
         )
 
 
@@ -1647,7 +1642,7 @@ class CurriculumInitialState(ManagerTermBase):
     direct act assignment) since the fixed pose spans every joint in the chain, not
     just the independent DOFs.
 
-    Model-restricted to the 17-joint/26-muscle mobl_arms_index v2.1/v2.2 family,
+    Model-restricted to the 17-joint/26-muscle MoBL_Arms_Index model,
     same guard as _reset_joints_initpose001 (initpose001 constants only make sense
     for that model).
     """
@@ -2320,12 +2315,12 @@ def _make_universal_env_cfg(config: Config, play: bool = False) -> ManagerBasedR
     #   zero                         → reset_joints_by_offset with zero offset (fixed default pose)
     #   range_uniform                → uniform sample across full joint range, ±0.05 rad·s⁻¹ vel
     #   initpose001                  → fixed "ready to interact" pose + muscle activation
-    #                                  (mobl_arms_index v2.1/v2.2 only; see _INITPOSE001_QPOS)
+    #                                  (MoBL_Arms_Index only; see _INITPOSE001_QPOS)
     #   initpose001_epsilon_uniform  → epsilon-ball around initpose001's qpos+act, not
     #                                  default_joint_pos/zero-act
     #   visited_success              → sample qpos uniformly from a buffer of states
     #                                  visited near the end of successful episodes
-    #                                  (mobl_arms_index v2.1/v2.2 only; see
+    #                                  (MoBL_Arms_Index only; see
     #                                  VisitedSuccessBuffer/VisitedSuccessReset)
     #   None                         → no joint reset across episodes
     _reset_type = config.env.task_config.reset_type
