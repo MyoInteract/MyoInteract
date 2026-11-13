@@ -331,6 +331,8 @@ class VisitedSuccessBuffer:
         device: str = "cpu",
         sampling: str = "uniform",
     ) -> None:
+        if buffer_size < 1:
+            raise ValueError("Visited-success buffer capacity must be positive.")
         self._qpos = torch.zeros(buffer_size, nq, device=device)
         self._relative_time = torch.zeros(buffer_size, device=device)
         self._ptr = 0
@@ -340,7 +342,8 @@ class VisitedSuccessBuffer:
 
         self._qpos[0] = init_qpos.to(device=device, dtype=torch.float32)
         self._relative_time[0] = 0.0
-        self._ptr = 1
+        self._ptr = 1 % buffer_size
+        self._full = buffer_size == 1
 
     def add(self, qpos: torch.Tensor, relative_time: torch.Tensor) -> None:
         """Append `qpos` rows (n, nq) with matching `relative_time` rows (n,)."""
@@ -348,9 +351,14 @@ class VisitedSuccessBuffer:
         if n == 0:
             return
         capacity = self._qpos.shape[0]
-        idxs = torch.arange(self._ptr, self._ptr + n, device=qpos.device) % capacity
-        self._qpos[idxs] = qpos
-        self._relative_time[idxs] = relative_time
+        # Keep only the newest capacity rows. Duplicate destinations in advanced
+        # indexing have undefined write order, including on CUDA.
+        skip = max(0, n - capacity)
+        idxs = (
+            torch.arange(self._ptr + skip, self._ptr + n, device=qpos.device) % capacity
+        )
+        self._qpos[idxs] = qpos[skip:]
+        self._relative_time[idxs] = relative_time[skip:]
         if self._ptr + n >= capacity and not self._full:
             self._full = True
         self._ptr = (self._ptr + n) % capacity
@@ -493,17 +501,17 @@ class VisitedSuccessReset(ManagerTermBase):
             success = env.termination_manager.get_term("episode_success")[
                 env_ids
             ].bool()
-            if success.any():
-                succ_env_ids = env_ids[success]
-                counts = asset.visited_success_staging_count[succ_env_ids]
-                for i, env_id in enumerate(succ_env_ids.tolist()):
-                    c = int(counts[i].item())
-                    if c == 0:
-                        continue
-                    buf.add(
-                        asset.visited_success_staging_qpos[env_id, :c],
-                        asset.visited_success_staging_rel_time[env_id, :c],
-                    )
+            counts = asset.visited_success_staging_count[env_ids]
+            slots = torch.arange(
+                asset.visited_success_staging_qpos.shape[1], device=env.device
+            )
+            # Boolean indexing preserves env-major, then snapshot order, matching
+            # the former per-environment loop without one GPU scalar read per env.
+            staged = success[:, None] & (slots[None, :] < counts[:, None])
+            buf.add(
+                asset.visited_success_staging_qpos[env_ids][staged],
+                asset.visited_success_staging_rel_time[env_ids][staged],
+            )
             asset.visited_success_staging_count[env_ids] = 0
             sampled = buf.sample(n)
         else:
@@ -1313,6 +1321,8 @@ class PostureBuffer:
         device: str = "cpu",
         sampling: str = "uniform",
     ) -> None:
+        if buffer_size < 1:
+            raise ValueError("Posture buffer capacity must be positive.")
         self._qpos = torch.zeros(buffer_size, nq, device=device)
         self._qvel = torch.zeros(buffer_size, nv, device=device)
         self._act = torch.zeros(buffer_size, na, device=device)
@@ -1334,12 +1344,14 @@ class PostureBuffer:
         if n == 0:
             return
         capacity = self._qpos.shape[0]
+        skip = max(0, n - capacity)
         idxs = (
-            torch.arange(self._ptr, self._ptr + n, device=rows_qpos.device) % capacity
+            torch.arange(self._ptr + skip, self._ptr + n, device=rows_qpos.device)
+            % capacity
         )
-        self._qpos[idxs] = rows_qpos
-        self._qvel[idxs] = rows_qvel
-        self._act[idxs] = rows_act
+        self._qpos[idxs] = rows_qpos[skip:]
+        self._qvel[idxs] = rows_qvel[skip:]
+        self._act[idxs] = rows_act[skip:]
         if self._ptr + n >= capacity and not self._full:
             self._full = True
         self._ptr = (self._ptr + n) % capacity
