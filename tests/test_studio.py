@@ -541,6 +541,68 @@ def test_page_side_fatigue_step_is_myosuites() -> None:
     assert np.abs(ref.MF - theirs.MF[0].numpy()).max() < 1e-5 and ref.MF.max() > 0.01
 
 
+def test_page_fatigue_step_matches_myo_sim_exact_step() -> None:
+    """sim.js's closed-form 3CC-r step equals myo-sim's, across the free, MR-limited and rest regimes."""
+    import shutil  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
+
+    import numpy as np  # noqa: PLC0415
+
+    fatigue = pytest.importorskip("myo_sim.physics.fatigue")
+    if not hasattr(fatigue, "three_cc_r_step"):
+        pytest.skip("myo-sim without the exact fatigue step")
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is required for the page's fatigue step")
+    rng = np.random.default_rng(1)
+    n, dt, threshold = 4000, 0.05, fatigue.FATIGUE_REST_THRESHOLD
+    tl = rng.uniform(0, 1, n) * rng.choice([0, 1], n, p=[0.2, 0.8])  # a fifth at rest
+    ma = rng.uniform(0, 1, n) * rng.choice([1, 0.3], n)
+    # half near the MR limit (MF around 1 - TL), where the step splits into regimes
+    mf = np.where(
+        rng.random(n) < 0.5,
+        np.clip((1 - tl) * rng.uniform(0.9, 1.1, n), 0, 1),
+        rng.uniform(0, 1, n),
+    )
+    mf = np.minimum(mf, 1 - ma)
+    params = {
+        "F": rng.uniform(0.005, 0.03, n),
+        "R": rng.uniform(0.002, 0.02, n),
+        "r": rng.uniform(5, 30, n),
+        "tauact": rng.uniform(0.01, 0.02, n),
+        "taudeact": rng.uniform(0.03, 0.06, n),
+    }
+    expected = fatigue.three_cc_r_step(
+        np,
+        ma,
+        mf,
+        tl,
+        dt=dt,
+        rest_threshold=threshold,
+        **params,
+    )
+    cases = [
+        {
+            "MA": ma[i],
+            "MF": mf[i],
+            "TL": tl[i],
+            "rest_threshold": threshold,
+            "params": {k: v[i] for k, v in params.items()} | {"dt": dt},
+        }
+        for i in range(n)
+    ]
+    out = subprocess.run(
+        [node, str(Path(__file__).parent / "studio_fatigue_step.mjs")],
+        input=json.dumps({"cases": cases}, default=float),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    page = np.array(json.loads(out.stdout))
+    assert np.abs(page[:, 0] - expected[0]).max() < 1e-9  # MA
+    assert np.abs(page[:, 1] - expected[2]).max() < 1e-9  # MF (expected is MA, MR, MF)
+
+
 @pytest.fixture
 def wandb_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     """W&B accepts only "good-key"; the machine itself has no login."""

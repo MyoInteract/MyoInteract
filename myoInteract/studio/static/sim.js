@@ -5,6 +5,61 @@ const sigmoid = (a) => 1 / (1 + Math.exp(-5 * (a - 0.5)));
 // a standard normal draw (Box-Muller)
 const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
 
+// The exact 3CC-r fatigue step of myo_sim (physics/fatigue.py, three_cc_r_step) for one muscle: command TL
+// held for dt, activation rates frozen at the start; returns [MA, MF] (MR = 1 - MA - MF).
+const TINY = 1e-20;
+const nz = (x) => (Math.abs(x) > TINY ? x : TINY);
+function relax(MA, MF, L, TL, F, rho, t) {
+  const k = L + F, MAs = (L * TL) / nz(k), D = MA - MAs, em = Math.expm1(-rho * t), kr = nz(k - rho);
+  const dMF = MF * em + F * ((-MAs * em) / rho - (D * (1 + em) * Math.expm1(-kr * t)) / kr);
+  return [MA + D * Math.expm1(-k * t), MF + dMF];
+}
+function limitedModes(L, F, rho) {
+  const det = nz((L + F) * rho + L * F), disc = (L + F - rho) ** 2 - 4 * L * F;
+  const s = nz(Math.sqrt(disc > 0 ? disc : 0)), lam1 = -0.5 * (L + F + rho + s);
+  return { MAe: (L * rho) / det, MFe: (L * F) / det, s, lam1, lam2: det / lam1 };
+}
+function limitedRelax(MA, MF, L, F, rho, t, { MAe, MFe, s, lam2 }) {
+  const y1 = MA - MAe, y2 = MF - MFe, em = Math.expm1(lam2 * t), h = ((1 + em) * -Math.expm1(-s * t)) / s, g1 = em - lam2 * h;
+  return [MA + g1 * y1 + h * (-(L + F) * y1 - L * y2), MF + g1 * y2 + h * (F * y1 - rho * y2)];
+}
+function freeSwitchTime(MA, MF, L, TL, thr, F, rho) {
+  const k = L + F, MAs = (L * TL) / nz(k), M = MF + (F * (MA - MAs)) / nz(k - rho), slope = F * MAs - rho * M;
+  const tau = M < thr ? (thr - M) / nz(slope) : 0, x = rho * (tau > 0 ? tau : 0);
+  const t = -Math.log1p(-(x < 1 - 1e-6 ? x : 1 - 1e-6)) / rho;
+  return M >= thr || (slope > 0 && x < 1) ? t : Infinity;
+}
+export function threeCCrStep(MA, MF, TL, { F, R, r, tauact, taudeact, dt, restThreshold }) {
+  let rho = TL <= restThreshold ? r * R : R;
+  rho = rho > TINY ? rho : TINY;
+  const nan = Number.isNaN(TL);
+  if (nan) TL = 0;
+  const act = 0.5 + 1.5 * MA, LD = nan ? 0 : 1 / (tauact * act), LR = nan ? 0 : act / taudeact;
+  const TLc = TL > 0 ? TL : 0, thr = 1 - TL, T = dt;
+  // 1) MA >= TL: deactivate until MA reaches max(TL, 0)
+  const falling = MA >= TL, k1 = nz(LR + F), gap = TLc - (LR * TL) / k1, ratio = (MA - (LR * TL) / k1) / nz(gap);
+  const tCross = gap > 0 ? Math.log(ratio > 1 ? ratio : 1) / k1 : Infinity, crosses = falling && tCross < T;
+  const d1 = falling ? (crosses ? tCross : T) : 0;
+  let [MA1, MF1] = relax(MA, MF, LR, TL, F, rho, d1);
+  if (crosses) MA1 = TLc;
+  const T2 = T - d1;
+  // 2) MA < TL: free or MR-limited recruitment, switching where the slow mode of MF crosses 1 - TL
+  const limited = MF1 >= thr, modes = limitedModes(LD, F, rho), { MAe, MFe, s, lam1, lam2 } = modes;
+  const p2 = (F * (MA1 - MAe) - (rho + lam1) * (MF1 - MFe)) / s, q = (thr - MFe) / nz(p2), down = q > 0 && q < 1;
+  let tB = Math.log(down ? q : 1) / lam2;
+  tB = MFe + p2 < thr ? 0 : down ? tB : Infinity;
+  if (MFe >= thr) tB = Infinity;
+  let tA = freeSwitchTime(MA1, MF1, LD, TLc, thr, F, rho);
+  if (F * ((LD * TLc) / nz(LD + F)) < rho * thr) tA = Infinity;
+  const tSw = limited ? tB : tA, d2 = tSw < T2 ? tSw : T2, d3 = T2 - d2;
+  const seg = (a, b, free, t) => (free ? relax(a, b, LD, TLc, F, rho, t) : limitedRelax(a, b, LD, F, rho, t, modes));
+  const [MA2, MF2] = seg(MA1, MF1, !limited, d2);
+  let [MA3, MF3] = seg(MA2, MF2, limited, d3);
+  MA3 = MA3 > 0 ? (MA3 < 1 ? MA3 : 1) : 0;
+  MF3 = MF3 > 0 ? (MF3 < 1 - MA3 ? MF3 : 1 - MA3) : 0;
+  return [MA3, MF3];
+}
+
 export class TaskSim {
   // base: folder of an example (sim.json, sim_model.xml, sim_policy.bin); mujocoUrl: the vendored module.
   static async load(base, mujocoUrl = new URL("./vendor/mujoco/mujoco.js", import.meta.url).href) {
@@ -125,15 +180,10 @@ export class TaskSim {
   fatigueStep(excitation) {
     const f = this.fatigue, dt = this.task.ctrl_dt, { MA, MF, MR } = this;
     for (let k = 0; k < MA.length; k++) {
-      const ma = MA[k], mf = MF[k], mr = MR[k], e = Math.fround(excitation[k]), F = f.F[k];
-      const ld = -Math.expm1(-dt / (f.tauact[k] * (0.5 + 1.5 * ma))) / dt;
-      const lr = -Math.expm1((-(0.5 + 1.5 * ma) / f.taudeact[k]) * dt) / dt;
-      const rr = e <= f.rest_threshold ? f.r[k] * f.R[k] : f.R[k];
-      let c = ma < e ? ld * Math.min(e - ma, mr) : lr * (e - ma);
-      c = Math.min(Math.max(c, Math.max(-ma / dt + F * ma, (mr - 1) / dt + rr * mf)), Math.min((1 - ma) / dt + F * ma, mr / dt + rr * mf));
-      MA[k] = ma + (c - F * ma) * dt;
-      MF[k] = mf + (F * ma - rr * mf) * dt;
-      MR[k] = mr + (-c + rr * mf) * dt;
+      const [ma, mf] = threeCCrStep(MA[k], MF[k], Math.fround(excitation[k]), {
+        F: f.F[k], R: f.R[k], r: f.r[k], tauact: f.tauact[k], taudeact: f.taudeact[k], dt, restThreshold: f.rest_threshold,
+      });
+      MA[k] = ma; MF[k] = mf; MR[k] = 1 - ma - mf;
     }
     return MA;
   }
