@@ -324,7 +324,7 @@ export class StudioScene extends EventTarget {
 
   setMusclesVisible(on) { this.showMuscles = on; if (this._muscles) this._muscles.visible = on; }
 
-  // The skin: the body volumes around the bones (primitive geoms, e.g. the MoBL arm's capsules).
+  // The skin: the body volumes around the bones (primitive geoms, e.g. MoBL-ARMS' capsules).
   setSkinVisible(on) {
     this.showSkin = on;
     for (const b of this.bodies) b.traverse((o) => { if (o.userData.volume) o.visible = on; });
