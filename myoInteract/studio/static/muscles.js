@@ -1,7 +1,7 @@
 // Muscle activity of a policy playing in the 3D view: live bars of the busiest muscles and per-episode
 // means of the muscle groups. Fed with one activation vector per control step (the live frames' tail).
 
-// Anatomical groups of the arm models' muscles (MyoArm and MoBL share the OpenSim names).
+// Anatomical groups of the arm models' muscles (MyoArm and MoBL-ARMS share the OpenSim names).
 export const MUSCLE_GROUPS = [
   ["Deltoid", /^DELT\d$/],
   ["Rotator cuff", /^(SUPSP|INFSP|SUBSC|TMIN)$/],
@@ -124,6 +124,9 @@ export function groupsHtml(meter, unit = "episode") {
   const last = meter.last;
   if (!last) return `<p class="muted mstats-empty">Group means appear after the first ${unit}.</p>`;
   const fatigue = last.groups.some((g) => g.fatigue != null);
-  const rows = last.groups.map((g) => `<div class="mgroup"><span class="mgroup-name">${esc(g.label)} <span class="muted">${g.n}</span></span><span class="mbar-track"><span class="mbar-fill" style="width:${(100 * g.mean).toFixed(1)}%;background:${activityColor(g.mean)}"></span><span class="mbar-tick" style="left:${(100 * g.session).toFixed(1)}%"></span></span><span class="mbar-val mono">${g.mean.toFixed(2)}</span>${fatigue ? `<span class="mbar-val mono" title="fatigued share at the end">${g.fatigue.toFixed(2)}</span>` : ""}</div>`).join("");
-  return `<div class="mgroups${fatigue ? " with-fatigue" : ""}"><div class="mgroup mgroup-head muted"><span>Group <span class="muted">muscles</span></span><span>last ${unit} · <span class="tick-key"></span> mean of ${meter.episodes}</span><span>mean</span>${fatigue ? "<span>MF</span>" : ""}</div>${rows}</div>`;
+  const rows = last.groups.map((g) => `<div class="mgroup"><span class="mgroup-name" title="${g.n} muscles">${esc(g.label)} <span class="muted">${g.n}</span></span><span class="mbar-track"><span class="mbar-fill" style="width:${(100 * g.mean).toFixed(1)}%;background:${activityColor(g.mean)}"></span><span class="mbar-tick" style="left:${(100 * g.session).toFixed(1)}%"></span></span><span class="mbar-val mono">${g.mean.toFixed(2)}</span>${fatigue ? `<span class="mbar-val mono" title="fatigued share at the end">${g.fatigue.toFixed(2)}</span>` : ""}</div>`).join("");
+  // The legend goes under the table, like the live view's: a header row has no room for it.
+  const per = unit === "episode" ? "episode" : `${unit} window`;
+  const note = `Bar: mean activation, last ${per} · <span class="tick-key"></span> mean of ${meter.episodes} ${per}${meter.episodes === 1 ? "" : "s"}${fatigue ? " · right: fatigued share (MF) at the end" : ""}`;
+  return `<div class="mgroups${fatigue ? " with-fatigue" : ""}">${rows}</div><span class="mcard-note">${note}</span>`;
 }

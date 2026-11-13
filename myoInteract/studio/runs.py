@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import signal
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -25,6 +27,13 @@ LOG_ROOT = Path("logs") / "rsl_rl"
 EXAMPLE_PREFIX = "examples/"  # run ids of the bundled example policies (read-only)
 _CKPT = re.compile(r"model_(\d+|final|stopped)\.onnx$")
 _LOGGER = logging.getLogger(__name__)
+_CURVE_TAGS = {
+    "Episode_Termination/episode_success",
+    "Episode_Termination/time_out",
+    "Train/mean_reward",
+    "Train/mean_episode_length",
+    "Perf/total_fps",
+}
 
 
 def _contained_path(root: Path, *parts: str | Path) -> Path:
@@ -164,13 +173,22 @@ def _saved_status(log_dir: Path) -> str | None:
     return None
 
 
-def summary(log_dir: Path) -> dict[str, Any] | None:
-    """Short description of a run's task (model, targets, fatigue, vision), from its config sidecar."""
-    path = log_dir / "myointeract_config.json"
-    if not path.exists():
+def _read_json(path: Path, expected: type = dict) -> Any:
+    """Read optional metadata without letting an interrupted writer hide other runs."""
+    if not path.is_file():
         return None
     try:
-        cfg = json.loads(path.read_text())
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, expected):
+            raise ValueError(f"expected a JSON {expected.__name__}")
+        return value
+    except (OSError, ValueError) as error:
+        _LOGGER.warning("Ignoring invalid metadata in %s: %s", path, error)
+        return None
+
+
+def _summary(cfg: dict | None) -> dict[str, Any] | None:
+    try:
         env = cfg["env"]
         vision = cfg.get("vision") or env.get("vision") or {}
         return {
@@ -179,8 +197,25 @@ def summary(log_dir: Path) -> dict[str, Any] | None:
             "fatigue": bool(env["muscle_config"].get("fatigue_enabled", False)),
             "vision": bool(vision.get("enabled", False)),
         }
-    except (KeyError, TypeError, ValueError):
+    except (AttributeError, KeyError, TypeError, ValueError):
         return None
+
+
+def summary(log_dir: Path) -> dict[str, Any] | None:
+    """Short description of a run's task (model, targets, fatigue, vision), from its config sidecar."""
+    return _summary(_read_json(_contained_path(log_dir, "myointeract_config.json")))
+
+
+def _ctrl_dt(value: Any) -> float | None:
+    """Malformed optional timing metadata must not turn curve values into strings."""
+    return (
+        value
+        if isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value > 0
+        else None
+    )
 
 
 def _yaml_int(path: Path, key: str) -> int | None:
@@ -202,7 +237,7 @@ class _Scalars:
 
     def read(self) -> dict[str, list[tuple[int, float]]]:
         self.acc.Reload()
-        tags = set(self.acc.Tags().get("scalars", []))
+        tags = _CURVE_TAGS.intersection(self.acc.Tags().get("scalars", []))
         return {t: [(e.step, e.value) for e in self.acc.Scalars(t)] for t in tags}
 
 
@@ -257,6 +292,7 @@ class RunManager:
     # ------------------------------------------------------------------ start / stop
     def active(self) -> list[str]:
         active = {rid for rid, p in list(self._procs.items()) if p.poll() is None}
+        output_index = None
         # Detached training keeps running across a Studio restart. Continue to
         # account for those jobs when enforcing the GPU capacity limit.
         for path in self.dir.glob("*/run.json"):
@@ -264,13 +300,15 @@ class RunManager:
                 continue
             try:
                 meta = self._meta(path.parent.name)
+                if output_index is None:
+                    output_index = self._output_index(self._output_dirs())
+                output = self.log_dir(path.parent.name, output_index=output_index)
+                if output and _saved_status(output):
+                    continue
             except KeyError as error:
                 _LOGGER.warning(
                     "Ignoring invalid run metadata for %s: %s", path.parent.name, error
                 )
-                continue
-            output = self.log_dir(path.parent.name)
-            if output and _saved_status(output):
                 continue
             if _same_process(meta):
                 active.add(path.parent.name)
@@ -375,13 +413,47 @@ class RunManager:
         self.log_dir(rid)  # raises KeyError for unknown runs
         return None
 
-    def log_dir(self, rid: str) -> Path | None:
+    def _output_dirs(self) -> dict[Path, Path]:
+        """One contained snapshot for a bulk query; never cache across requests."""
+        log_root = (self.root / LOG_ROOT).resolve()
+        paths = {}
+        for path in log_root.glob("*/*"):
+            try:
+                resolved = path.resolve()
+                if log_root not in resolved.parents:
+                    raise KeyError(str(resolved))
+                if resolved.is_dir():
+                    paths[path] = resolved
+            except (KeyError, OSError) as error:
+                _LOGGER.warning(
+                    "Ignoring invalid training directory %s: %s", path, error
+                )
+        return paths
+
+    @staticmethod
+    def _output_index(paths: dict[Path, Path]) -> dict[str, Path]:
+        # A Studio run ID is the output directory's suffix after an underscore.
+        # Index every such suffix to support run names containing underscores;
+        # sorted assignment preserves log_dir's lexically latest match rule.
+        index = {}
+        for path, resolved in sorted(paths.items(), key=lambda pair: pair[1]):
+            for i, char in enumerate(path.name):
+                if char == "_":
+                    index[os.path.normcase(path.name[i + 1 :])] = resolved
+        return index
+
+    def log_dir(
+        self, rid: str, *, output_index: dict[str, Path] | None = None
+    ) -> Path | None:
         """Training output directory of a Studio run, an example, or a run id ``<experiment>/<dir>``."""
         if rid.startswith(EXAMPLE_PREFIX) and example_dir(rid[len(EXAMPLE_PREFIX) :]):
             return example_dir(rid[len(EXAMPLE_PREFIX) :])
         rdir = self._studio_dir(rid)
         log_root = (self.root / LOG_ROOT).resolve()
         if rdir is not None:
+            if output_index is not None:
+                path = output_index.get(os.path.normcase(rdir.name))
+                return _contained_path(log_root, path) if path is not None else None
             hits = sorted(
                 path.resolve()
                 for path in log_root.glob(f"*/*_{rdir.name}")
@@ -424,22 +496,27 @@ class RunManager:
         rdir = self._studio_dir(rid)
         if rdir is None:
             raise KeyError(rid)
-        if not (log_dir / "original_hydra_config.json").exists():
-            source = _contained_path(rdir, "overrides.json")
-            _contained_path(log_dir, "original_hydra_config.json").write_text(
-                source.read_text()
-            )
-        if not (log_dir / "myointeract_config.json").exists():
-            source = _contained_path(rdir, "resolved.json")
-            _contained_path(log_dir, "myointeract_config.json").write_text(
-                source.read_text()
-            )
+        for source, name, expected in (
+            ("overrides.json", "original_hydra_config.json", list),
+            ("resolved.json", "myointeract_config.json", dict),
+        ):
+            if not (log_dir / name).exists():
+                destination = _contained_path(log_dir, name)
+                value = _read_json(_contained_path(rdir, source), expected)
+                if value is not None:
+                    write_json(destination, value)
 
-    def get(self, rid: str, with_metrics: bool = True) -> dict:
+    def get(
+        self,
+        rid: str,
+        with_metrics: bool = True,
+        *,
+        output_index: dict[str, Path] | None = None,
+    ) -> dict:
         rdir = self._studio_dir(rid)
         if rdir is not None:
             meta = self._meta(rid)
-            log_dir = self.log_dir(rid)
+            log_dir = self.log_dir(rid, output_index=output_index)
             if log_dir:
                 self._sidecars(rid, log_dir)
             train_log = _contained_path(rdir, "train.log")
@@ -452,9 +529,9 @@ class RunManager:
             if meta.get("wandb") and train_log.exists():
                 with train_log.open("rb") as f:  # wandb prints the link when it starts
                     out["wandb_url"] = run_url(f.read(1 << 16).decode(errors="replace"))
-            ctrl_dt = meta.get("ctrl_dt")
+            ctrl_dt = _ctrl_dt(meta.get("ctrl_dt"))
         elif rid.startswith(EXAMPLE_PREFIX) and example_dir(rid[len(EXAMPLE_PREFIX) :]):
-            log_dir = self.log_dir(rid)
+            log_dir = self.log_dir(rid, output_index=output_index)
             example = json.loads((log_dir / "example.json").read_text())
             out = {
                 "id": rid,
@@ -465,7 +542,7 @@ class RunManager:
             }
             ctrl_dt = None
         else:
-            log_dir = self.log_dir(rid)
+            log_dir = self.log_dir(rid, output_index=output_index)
             out = {
                 "id": rid,
                 "name": rid,
@@ -476,16 +553,21 @@ class RunManager:
                 ),
             }
             ctrl_dt = None
-            cfg = log_dir / "myointeract_config.json"
-            if cfg.exists():
-                ctrl_dt = json.loads(cfg.read_text()).get("env", {}).get("ctrl_dt")
+        cfg = (
+            _read_json(_contained_path(log_dir, "myointeract_config.json"))
+            if log_dir
+            else None
+        )
+        if out["source"] == "logs" and cfg is not None:
+            env = cfg.get("env")
+            ctrl_dt = _ctrl_dt(env.get("ctrl_dt")) if isinstance(env, dict) else None
         out["log_dir"] = str(log_dir) if log_dir else None
         out["checkpoints"] = checkpoints(log_dir) if log_dir else []
         now = time.time()
         out["checkpoint_age_s"] = {
             c: round(now - (log_dir / c).stat().st_mtime) for c in out["checkpoints"]
         }
-        out["summary"] = summary(log_dir) if log_dir else None
+        out["summary"] = _summary(cfg)
         out["evaluable"] = bool(
             log_dir and ((log_dir / "original_hydra_config.json").exists())
         )
@@ -498,22 +580,37 @@ class RunManager:
 
     def list(self) -> list[dict]:
         runs = []
+        outputs = self._output_dirs()
+        output_index = self._output_index(outputs)
         for path in sorted(self.dir.iterdir(), reverse=True):
             if (path / "run.json").exists():
                 try:
-                    runs.append(self.get(path.name, with_metrics=False))
+                    runs.append(
+                        self.get(
+                            path.name, with_metrics=False, output_index=output_index
+                        )
+                    )
                 except KeyError as error:
                     _LOGGER.warning(
                         "Ignoring invalid run metadata for %s: %s", path.name, error
                     )
         mine = {r["log_dir"] for r in runs}
         for d in sorted(
-            (self.root / LOG_ROOT).glob("*/*"),
+            outputs,
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )[:50]:
-            if d.is_dir() and str(d) not in mine and any(d.glob("model_*.onnx")):
-                runs.append(self.get(f"{d.parent.name}/{d.name}", with_metrics=False))
+            if (
+                d.is_dir()
+                and str(outputs[d]) not in mine
+                and any(d.glob("model_*.onnx"))
+            ):
+                try:
+                    runs.append(
+                        self.get(f"{d.parent.name}/{d.name}", with_metrics=False)
+                    )
+                except KeyError as error:
+                    _LOGGER.warning("Ignoring invalid training run %s: %s", d, error)
         runs += [
             self.get(EXAMPLE_PREFIX + e["name"], with_metrics=False)
             for e in list_examples()
@@ -536,6 +633,7 @@ class JobManager:
         self._stopped: set[str] = set()  # jobs ended on request, not by failing
         self._warm_enabled = warm
         self._warm: subprocess.Popen | None = None
+        self._warm_lock = threading.Lock()
         if warm:
             self._start_warm()
 
@@ -547,28 +645,33 @@ class JobManager:
 
     def _take_warm(self, argv: list[str], log: Path) -> subprocess.Popen | None:
         """Hand a job to the waiting worker (and start the next one); None if there is none."""
-        proc, self._warm = self._warm, None
-        if proc is None or proc.poll() is not None:
-            if self._warm_enabled:
-                self._start_warm()
-            return None
-        try:
-            proc.stdin.write(
-                (json.dumps({"argv": argv, "log": str(log)}) + "\n").encode()
-            )
-            proc.stdin.close()
-        except OSError:
-            return None
-        finally:
-            if self._warm_enabled:
-                self._start_warm()
-        return proc
+        # A handoff and its replacement are one ownership change. Concurrent
+        # requests must not spawn replacements that overwrite each other.
+        with self._warm_lock:
+            proc, self._warm = self._warm, None
+            if proc is None or proc.poll() is not None:
+                if self._warm_enabled:
+                    self._start_warm()
+                return None
+            try:
+                proc.stdin.write(
+                    (json.dumps({"argv": argv, "log": str(log)}) + "\n").encode()
+                )
+                proc.stdin.close()
+            except OSError:
+                return None
+            finally:
+                if self._warm_enabled:
+                    self._start_warm()
+            return proc
 
     def close(self) -> None:
         """Stop the waiting worker (the server shuts down)."""
-        if self._warm is not None:
-            _terminate(self._warm, self._warm.pid)
-            self._warm = None
+        with self._warm_lock:
+            self._warm_enabled = False
+            if self._warm is not None:
+                _terminate(self._warm, self._warm.pid)
+                self._warm = None
 
     def start(
         self, kind: str, args: list[str], inputs: dict[str, Any] | None = None
