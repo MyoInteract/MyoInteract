@@ -1,10 +1,10 @@
 [project]
 name = "myoInteract"
 version = "1.0.0"
-description = "Teach a muscle-driven user model to interact with your interface"
+description = "Train a muscle-driven user model to interact with your interface"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache 2.0" }
+license = { text = "GPL-3.0-only" }
 authors = [
     { name = "Ankit Bhattarai" },
     { name = "Hannah Selder" },
@@ -18,6 +18,9 @@ dependencies = [
     # CPU Studio supports newer 3.x engines. Optional training backends constrain
     # their own compatible engine/Warp combination through their dependencies.
     "mujoco>=3.11,<4",
+    # mjviser 0.0.17 needs mujoco-core 4, whose libmujoco overwrites the 3.x one (import mujoco fails
+    # in a fresh install). MyoSuite pulls mjviser unpinned; lift this cap with the MuJoCo 4 support.
+    "mjviser<0.0.17",
     "hydra-core>=1.3.7",
     "omegaconf>=2.3.1",
 ]
