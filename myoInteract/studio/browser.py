@@ -20,6 +20,11 @@ import numpy as np
 
 from myoInteract.studio.examples import EXAMPLES
 
+try:  # myo-sim >= 0.2.5 (MyoSuite 3.1): the exact 3CC-r step; older installs keep the explicit one below
+    from myo_sim.physics.fatigue import three_cc_r_step
+except ImportError:
+    three_cc_r_step = None
+
 ENTITY = "universal_robot/"
 _OPTIONS = (
     "timestep",
@@ -442,6 +447,24 @@ class Reference:
             excitation.astype(np.float32),
         )
         ma, mf, mr = self.MA, self.MF, self.MR
+        if three_cc_r_step is not None:  # myo-sim >= 0.2.5: the exact step
+            ma, mr, mf = three_cc_r_step(
+                np,
+                ma,
+                mf,
+                e,
+                F=f["F"],
+                R=f["R"],
+                r=f["r"],
+                tauact=f["tauact"],
+                taudeact=f["taudeact"],
+                dt=float(dt),
+                rest_threshold=self.task["fatigue"]["rest_threshold"],
+            )
+            self.MA, self.MF, self.MR = (
+                np.asarray(x, np.float32) for x in (ma, mf, mr)
+            )
+            return self.MA
         ld = 1.0 / (f["tauact"] * (0.5 + 1.5 * ma))
         lr = (0.5 + 1.5 * ma) / f["taudeact"]
         ld, lr = -np.expm1(-ld * dt) / dt, -np.expm1(-lr * dt) / dt
