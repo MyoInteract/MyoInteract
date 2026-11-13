@@ -42,9 +42,11 @@ ui = [
 ]
 # Studio backend (myo_studio serve): the web app and its HTTP API.
 studio = [
+    "cryptography>=42",  # Studio's optional localhost HTTPS certificate
     "fastapi>=0.110",
     "httpx>=0.27",  # Studio's HTTP viewer proxy
     "psutil>=5.9",  # Cross-platform process liveness without signal probing
+    "tensorboard>=2.16",  # Read training curves without a training backend
     "uvicorn>=0.29",
     "websockets>=13",  # Studio: live 3D feed of the stream worker
 ]
