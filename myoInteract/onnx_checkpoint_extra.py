@@ -1,6 +1,6 @@
 # Copyright (c) myoInteract Authors. All rights reserved.
 #
-# This source code is licensed under the Apache 2 license found in the
+# This source code is licensed under the GNU General Public License v3.0 found in the
 # LICENSE file in the root directory of this source tree.
 """myointeract-specific ONNX checkpoint helpers not part of MyoSuite's public API.
 
