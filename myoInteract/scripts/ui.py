@@ -175,7 +175,7 @@ if gr.NO_RELOAD:
         # what register_mjlab_myointeract_task() actually used to build the
         # target_pos_dr event term's ranges for this model. Must NOT be a
         # hardcoded constant: different bm_models use different ref_site values
-        # (e.g. myoarm/myoarm_v2 use "R.Shoulder_marker", not MoBL's "humphant").
+        # (e.g. the MyoArm models use "R.Shoulder_marker", not MoBL's "humphant").
         target_origin = _compute_target_origin(config)
 
         try:
@@ -745,13 +745,9 @@ class BMParameters:
     mj_impl_choices = ("mjlab",)
     bm_model_choices = (
         "MoBL_Arms_Index",
-        "MoBL_Arms_Index_v2.1",
-        "MoBL_Arms_Index_v2.2",
         "MoBL_Arms_Hand",
-        "MoBL_Arms_Hand_v2.1",
         "MyoArm_nohand",
         "MyoArm",
-        "MyoArm_v2",
         "MyoArm_reach",
         "MyoArm_pointing",
     )
@@ -3068,17 +3064,13 @@ def get_ui(project_name, run_state=RunState(), use_legacy_rendering=False):
 
             target_value = (
                 5_000_000
-                + (
-                    bm_model
-                    in ("MoBL_Arms_Hand", "MoBL_Arms_Hand_v2.1", "MyoArm", "MyoArm_v2")
-                )
+                + (bm_model in ("MoBL_Arms_Hand", "MyoArm"))
                 * 3_000_000  # number to be validated
                 + (
                     bm_model
                     in (
                         "MyoArm_nohand",
                         "MyoArm",
-                        "MyoArm_v2",
                         "MyoArm_reach",
                         "MyoArm_pointing",
                     )
