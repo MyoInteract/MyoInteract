@@ -349,6 +349,28 @@ def _parse_rgba(rgba_str: str) -> list[float]:
     return [int(hex_color[i : i + 2], 16) / 255.0 for i in (0, 2, 4)]
 
 
+def restore_button_geometry(box: dict, stored_box: dict) -> dict:
+    """Keep geometry without Gradio widgets while applying the editable Y angle."""
+    result = dict(box)
+    if stored_box.get("euler") is not None:
+        euler = list(stored_box["euler"])
+        euler[1] = -float(box.get("orientation_angle", 0)) * math.pi / 180
+        result["euler"] = euler
+    if "box_thickness" in stored_box:
+        result["box_thickness"] = stored_box["box_thickness"]
+    return result
+
+
+def button_geometry(box: dict) -> tuple[list[float], list[float]]:
+    """Read full Euler angles and the two half-depth bounds from a labelled box."""
+    angle = float(box.get("orientation_angle", 0))
+    euler = box.get("euler") or [0, -angle * math.pi / 180, 0]
+    thickness = box.get("box_thickness", 0.02)
+    if not isinstance(thickness, (list, tuple)):
+        thickness = [thickness, thickness]
+    return list(euler), [0.5 * float(value) for value in thickness]
+
+
 def gradio_json_to_overrides(cfg: dict) -> list[str]:
     """Convert a saved gradio JSON config dict to Hydra override strings.
 
@@ -479,16 +501,14 @@ def gradio_json_to_overrides(cfg: dict) -> list[str]:
                 sx = [sx, sx]
             if not isinstance(sy, list):
                 sy = [sy, sy]
-            angle = float(b.get("orientation_angle", 0))
             # Studio: a button on a screen carries its full orientation (MuJoCo euler, rad) and thickness (m).
-            euler = b.get("euler") or [0, -angle * math.pi / 180, 0]
-            half_t = 0.5 * float(b.get("box_thickness", 0.02))
+            euler, half_t = button_geometry(b)
             rgb = _parse_rgba(b.get("rgb", "rgba(204.0,25.5,25.5,1)"))
             overrides += [
                 f"env.task_config.targets.target_{i}.position="
                 f"[[{px[0]},{py[0]},{pz[0]}],[{px[1]},{py[1]},{pz[1]}]]",
                 f"env.task_config.targets.target_{i}.size="
-                f"[[{0.5*sx[0]},{0.5*sy[0]},{half_t}],[{0.5*sx[1]},{0.5*sy[1]},{half_t}]]",
+                f"[[{0.5*sx[0]},{0.5*sy[0]},{half_t[0]}],[{0.5*sx[1]},{0.5*sy[1]},{half_t[1]}]]",
                 f"env.task_config.targets.target_{i}.min_touch_force={b.get('min_touch_force', 1.0)}",
                 f"env.task_config.targets.target_{i}.euler=[{euler[0]},{euler[1]},{euler[2]}]",
                 f"env.task_config.targets.target_{i}.rgb=[{rgb[0]},{rgb[1]},{rgb[2]}]",
@@ -659,9 +679,11 @@ def training_config_to_labelled_dict(config_dict: dict) -> dict:
             if isinstance(size[0], (int, float)):
                 hx_min = hx_max = float(size[0])
                 hy_min = hy_max = float(size[1])
+                hz_min = hz_max = float(size[2])
             else:
                 hx_min, hy_min = size[0][0], size[0][1]
                 hx_max, hy_max = size[1][0], size[1][1]
+                hz_min, hz_max = size[0][2], size[1][2]
             box_p = {
                 "box_position_x": [xmin, xmax],
                 "box_position_y": [ymin, ymax],
@@ -671,13 +693,17 @@ def training_config_to_labelled_dict(config_dict: dict) -> dict:
                 "min_touch_force": float(t.get("min_touch_force", 1.0)),
                 "orientation_angle": float(angle_deg),
                 "rgb": rgb_str,
+                "euler": list(euler),
+                "box_thickness": 2 * hz_min
+                if hz_min == hz_max
+                else [2 * hz_min, 2 * hz_max],
             }
             return "Box", box_p, dict(_DEF_SPHERE)
         else:
             if isinstance(pos[0], (int, float)):
-                x_range = [0.3, 0.6]
-                y_range = [-0.3, 0.3]
-                z_range = [-0.3, 0.15]
+                x_range = [float(pos[0]), float(pos[0])]
+                y_range = [float(pos[1]), float(pos[1])]
+                z_range = [float(pos[2]), float(pos[2])]
             else:
                 x_range = [pos[0][0], pos[1][0]]
                 y_range = [pos[0][1], pos[1][1]]
