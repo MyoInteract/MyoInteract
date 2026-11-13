@@ -260,6 +260,8 @@ def _load_myoarm_r_based_spec(variant: str) -> mujoco.MjSpec:
         quat=[0.7106, 0.25537, 0.616985, 0.221728],
         meshname="eye",
         rgba=[1, 1, 1, 0],
+        contype=0,  # invisible, never collides (MuJoCo 4 would default it to 1/1)
+        conaffinity=0,
     )
     fixed_eye.add_camera(name="fixed-eye", pos=[0, 0, 0], fovy=120)
     side_camera = spec.worldbody.add_body(
