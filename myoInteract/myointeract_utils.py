@@ -187,8 +187,15 @@ def add_sphere_to_spec(
     rgba = np.ones(4)
     rgba[:3] = target_cfg.rgb
     target_size = np.ones(3) * target_size  ##TODO: deprecated -- remove
+    # Visual only. Set explicitly: after an empty-prefix attach, MuJoCo 4 gives geoms added
+    # here the parent spec's main default (colliding), not the attached body model's.
     target_body.add_geom(
-        name=target_geom_name, pos=np.zeros(3), size=target_size, rgba=rgba
+        name=target_geom_name,
+        pos=np.zeros(3),
+        size=target_size,
+        rgba=rgba,
+        contype=0,
+        conaffinity=0,
     )
     # print(f"Added target {target_geom_name} to spec")
 
