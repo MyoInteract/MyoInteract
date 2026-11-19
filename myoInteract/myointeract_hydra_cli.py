@@ -286,6 +286,17 @@ def _vision_config_overrides(config_dict: dict) -> list[str]:
     ):
         if key in vision:
             values.append(f"vision.{key}={vision[key]}")
+    if vision.get("foveated_acuity", False):
+        values.append("vision.foveated_acuity=True")
+        for key in (
+            "fovea_sigma0_deg",
+            "half_resolution_deg",
+            "foveation_levels",
+            "camera_fovy_deg",
+            "fixation_uv",
+        ):
+            if key in vision:
+                values.append(f"vision.{key}={vision[key]}")
     return values
 
 

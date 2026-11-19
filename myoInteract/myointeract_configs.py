@@ -183,6 +183,12 @@ class VisionEnabledConfig:
     observation_cameras: list[int] = field(default_factory=lambda: [0])
     evaluation_cameras: list[int] = field(default_factory=lambda: [0, 1])
     use_rasterizer: bool = False
+    foveated_acuity: bool = False
+    fovea_sigma0_deg: float = 0.04
+    half_resolution_deg: float = 2.3
+    foveation_levels: int = 5
+    camera_fovy_deg: float = 90.0
+    fixation_uv: list[float] = field(default_factory=lambda: [0.5, 0.5])
     num_train_envs: int = 1024  # do not override, use RLConfig.num_envs instead!
     num_eval_envs: int = 8  # do not override, use RLConfig.num_eval_envs instead!
 

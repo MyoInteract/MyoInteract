@@ -5,13 +5,17 @@ from mjlab.managers import ObservationTermCfg, ObservationGroupCfg
 from mjlab.sensor import CameraSensorCfg, CameraSensor
 
 from myoInteract.common import MyoComponent
+from myoInteract.foveation import FoveationParams, foveate_tensor
 from .cnn_vision_config import CnnVisionConfig
 from ..vision_registry import myo_register_vision
 
 
-def cnn_camera_rgb(env: ManagerBasedRlEnv, sensor_name: str) -> torch.Tensor:
-    "Modfied version of mjlab.tasks.manipulation::camera_rgb to add support"
-    "for custom visual impairments"
+def cnn_camera_rgb(
+    env: ManagerBasedRlEnv,
+    sensor_name: str,
+    foveation: FoveationParams | None = None,
+) -> torch.Tensor:
+    """Modified version of mjlab.tasks.manipulation::camera_rgb with optional foveation."""
     sensor: CameraSensor = env.scene[sensor_name]
 
     raw_rgb = sensor.data.rgb  # (B, H, W, 3)
@@ -21,19 +25,8 @@ def cnn_camera_rgb(env: ManagerBasedRlEnv, sensor_name: str) -> torch.Tensor:
     rgb_data = rgb_data.to(dtype=torch.float32, device=env.device)
     rgb_data = rgb_data.div_(255.0)
 
-    # add visual-impairment
-    # sim = VipSimGPU(device=env.device)
-    # rgb_data = sim.blur(rgb_data, severity=0.1)
-
-    # write changes back to camera sensor for preview in visualizer
-    # sensor.data.rgb = (
-    #    rgb_data
-    #    .permute(0, 2, 3, 1)
-    #    .mul_(255.0)
-    #    .round_()
-    #    .clamp_(0, 255)
-    #    .to(dtype=raw_rgb.dtype, device=raw_rgb.device)
-    # )
+    if foveation is not None:
+        rgb_data = foveate_tensor(rgb_data, foveation)
 
     return rgb_data
 
@@ -43,9 +36,9 @@ def cnn_camera_depth(
     sensor_name: str,
     cutoff_distance: float,
     min_depth: float = 0.01,
+    foveation: FoveationParams | None = None,
 ) -> torch.Tensor:
-    "Modfied version of mjlab.tasks.manipulation::camera_depth to add support"
-    "for custom visual impairments"
+    """Modified version of mjlab.tasks.manipulation::camera_depth with optional foveation."""
     sensor: CameraSensor = env.scene[sensor_name]
 
     depth_raw = sensor.data.depth  # (B, H, W, 1)
@@ -58,18 +51,8 @@ def cnn_camera_depth(
         .div_(cutoff_distance - min_depth)
     )
 
-    # add visual-impairment
-    # sim = VipSimGPU(device=env.device)
-    # depth_data = sim.blur(depth_data, severity=0.1)
-
-    # write changes back to camera sensor for preview in visualizer
-    # sensor.data.depth = (
-    #    depth_data
-    #    .permute(0, 2, 3, 1)
-    #    .mul_(cutoff_distance - min_depth)
-    #    .add_(min_depth)
-    #    .to(dtype=depth_raw.dtype, device=depth_raw.device)
-    # )
+    if foveation is not None:
+        depth_data = foveate_tensor(depth_data, foveation)
 
     return depth_data
 
@@ -82,22 +65,29 @@ class CnnVisionComponent(MyoComponent):
     def modify_env_cfg(self, cfg: ManagerBasedRlEnvCfg, play: bool) -> None:
         data_types: list[str] = []
         terms: dict[str, ObservationTermCfg] = {}
+        foveation = self.cfg.foveation_params()
 
         if self.cfg.use_rgb:
             data_types.append("rgb")
+            rgb_params: dict[str, object] = {"sensor_name": "cnn_sensor"}
+            if foveation is not None:
+                rgb_params["foveation"] = foveation
             terms["cnn_rgb"] = ObservationTermCfg(
-                func=cnn_camera_rgb, params={"sensor_name": "cnn_sensor"}
+                func=cnn_camera_rgb, params=rgb_params
             )
 
         if self.cfg.use_depth:
             data_types.append("depth")
+            depth_params: dict[str, object] = {
+                "sensor_name": "cnn_sensor",
+                "cutoff_distance": self.cfg.depth_cutoff,
+                "min_depth": self.cfg.depth_min,
+            }
+            if foveation is not None:
+                depth_params["foveation"] = foveation
             terms["cnn_depth"] = ObservationTermCfg(
                 func=cnn_camera_depth,
-                params={
-                    "sensor_name": "cnn_sensor",
-                    "cutoff_distance": self.cfg.depth_cutoff,
-                    "min_depth": self.cfg.depth_min,
-                },
+                params=depth_params,
             )
 
         cfg.scene.sensors += (
