@@ -53,6 +53,7 @@ from myoInteract.body_models import (
     base_spec,  # noqa: F401 - preserve the existing public import path
     compile_base_model,
 )
+from myoInteract.foveation import FoveationParams, foveate_tensor
 
 from myoInteract.myointeract_utils import (
     add_button_to_spec,
@@ -2009,6 +2010,30 @@ def _sequential_task_time_out(env: ManagerBasedRlEnv) -> torch.Tensor:
     return mdp_terminations.time_out(env) & ~completed
 
 
+def _foveated_camera_rgb(
+    env: ManagerBasedRlEnv,
+    sensor_name: str,
+    foveation: FoveationParams,
+) -> torch.Tensor:
+    return foveate_tensor(manipulation_mdp.camera_rgb(env, sensor_name), foveation)
+
+
+def _foveated_camera_depth(
+    env: ManagerBasedRlEnv,
+    sensor_name: str,
+    cutoff_distance: float,
+    min_depth: float,
+    foveation: FoveationParams,
+) -> torch.Tensor:
+    raw = manipulation_mdp.camera_depth(
+        env,
+        sensor_name,
+        cutoff_distance=cutoff_distance,
+        min_depth=min_depth,
+    )
+    return foveate_tensor(raw, foveation)
+
+
 def _vision_camera_recipe(vision) -> dict:
     """Use requested sensing for new tasks and retain old checkpoints' actual inputs."""
     version = vision.get("recipe_version", 1)
@@ -2020,6 +2045,7 @@ def _vision_camera_recipe(vision) -> dict:
             depth_min=0.01,
             depth_cutoff=0.5,
             enabled_geom_groups=(0, 3),
+            foveation=None,
         )
     if version != 2:
         raise ValueError(f"Unsupported vision recipe version: {version}")
@@ -2044,6 +2070,18 @@ def _vision_camera_recipe(vision) -> dict:
         raise ValueError(
             "Vision depth bounds must be finite and satisfy 0 <= depth_min < depth_cutoff."
         )
+    foveated_flag = vision.get("foveated_acuity", False)
+    if not isinstance(foveated_flag, bool):
+        raise ValueError("Vision foveated_acuity must be a boolean.")
+    foveation: FoveationParams | None = None
+    if foveated_flag:
+        foveation = FoveationParams(
+            fovea_sigma0_deg=float(vision.get("fovea_sigma0_deg", 0.04)),
+            half_resolution_deg=float(vision.get("half_resolution_deg", 2.3)),
+            levels=vision.get("foveation_levels", 5),
+            camera_fovy_deg=float(vision.get("camera_fovy_deg", 90.0)),
+            fixation_uv=vision.get("fixation_uv", (0.5, 0.5)),
+        )
     return dict(
         data_types=modes[mode],
         width=width,
@@ -2051,6 +2089,7 @@ def _vision_camera_recipe(vision) -> dict:
         depth_min=minimum,
         depth_cutoff=cutoff,
         enabled_geom_groups=tuple(vision.enabled_geom_groups),
+        foveation=foveation,
     )
 
 
@@ -2133,15 +2172,24 @@ def _make_universal_env_cfg(config: Config, play: bool = False) -> ManagerBasedR
             )
             scene_cfg.sensors = (scene_cfg.sensors or ()) + (cam_cfg,)
             param_kwargs: dict[str, Any] = {"sensor_name": cam_cfg.name}
+            foveation = recipe.get("foveation")
             for cam_type in cam_types:
                 if cam_type == "depth":
                     _param_kwargs = param_kwargs.copy()
                     _param_kwargs["cutoff_distance"] = recipe["depth_cutoff"]
                     _param_kwargs["min_depth"] = recipe["depth_min"]
-                    func = manipulation_mdp.camera_depth
+                    if foveation is not None:
+                        _param_kwargs["foveation"] = foveation
+                        func = _foveated_camera_depth
+                    else:
+                        func = manipulation_mdp.camera_depth
                 else:
-                    _param_kwargs = param_kwargs
-                    func = manipulation_mdp.camera_rgb
+                    if foveation is not None:
+                        _param_kwargs = {**param_kwargs, "foveation": foveation}
+                        func = _foveated_camera_rgb
+                    else:
+                        _param_kwargs = param_kwargs
+                        func = manipulation_mdp.camera_rgb
                 cam_terms[f"{cam_name.split('/')[-1]}_{cam_type}"] = ObservationTermCfg(
                     func=func, params=_param_kwargs
                 )
