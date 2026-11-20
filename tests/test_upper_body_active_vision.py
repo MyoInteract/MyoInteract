@@ -69,7 +69,14 @@ def test_myotorso_arms_variants_compile_and_step() -> None:
         assert active_model.joint(jname).id >= 0
     for cname in ("head_fovea", "head_periphery", "eye_l", "eye_r"):
         assert active_model.camera(cname).id >= 0
-    for sname in ("gaze_origin", "gaze_forward", "head_imu", "IFtip", "IFtip_r", "IFtip_l"):
+    for sname in (
+        "gaze_origin",
+        "gaze_forward",
+        "head_imu",
+        "IFtip",
+        "IFtip_r",
+        "IFtip_l",
+    ):
         assert active_model.site(sname).id >= 0
     for sen_name in ("head_accel", "head_gyro", "head_quat"):
         assert active_model.sensor(sen_name).id >= 0
@@ -88,11 +95,15 @@ def test_myotorso_arms_variants_compile_and_step() -> None:
 
 
 def test_gaze_state_numpy_velocity_target_and_reset() -> None:
-    cfg = GazeDynamicsConfig(max_saccade_speed_uv=2.0, uv_margin=0.1, init_uv=(0.5, 0.5))
+    cfg = GazeDynamicsConfig(
+        max_saccade_speed_uv=2.0, uv_margin=0.1, init_uv=(0.5, 0.5)
+    )
     state = GazeState(cfg, batch_size=3)
     assert state.uv.shape == (3, 2)
 
-    uv1 = state.step(np.array([[1.0, 0.0], [-1.0, 1.0], [0.0, 0.0]]), dt=0.1, mode="velocity")
+    uv1 = state.step(
+        np.array([[1.0, 0.0], [-1.0, 1.0], [0.0, 0.0]]), dt=0.1, mode="velocity"
+    )
     np.testing.assert_allclose(uv1[0], [0.7, 0.5], atol=1e-6)
     np.testing.assert_allclose(uv1[1], [0.3, 0.7], atol=1e-6)
     np.testing.assert_allclose(uv1[2], [0.5, 0.5], atol=1e-6)
@@ -125,7 +136,9 @@ def test_crop_and_dual_acuity_streams_torch() -> None:
     img[:, :, 32:, 32:] = 1.0
 
     uv = torch.tensor([[0.2, 0.2], [0.8, 0.8]], dtype=torch.float32, requires_grad=True)
-    crops = crop_foveal_patch_tensor(img, uv, patch_height=16, patch_width=16, fov_ratio=0.2)
+    crops = crop_foveal_patch_tensor(
+        img, uv, patch_height=16, patch_width=16, fov_ratio=0.2
+    )
     assert crops.shape == (2, 3, 16, 16)
     assert float(crops[0].mean().item()) == pytest.approx(0.1, abs=1e-5)
     assert float(crops[1].mean().item()) == pytest.approx(1.0, abs=1e-5)
@@ -213,7 +226,8 @@ def test_action_chunker_and_schedule_torch_parity() -> None:
 
 def test_dual_acuity_vision_config_validation() -> None:
     pytest.importorskip("mjlab")
-    from myoInteract.vision import DualAcuityVisionConfig, myo_create_vision
+    from myoInteract.vision import DualAcuityVisionComponent, DualAcuityVisionConfig
+    from myoInteract.vision.vision_registry import _myo_vision_registry
 
     cfg = DualAcuityVisionConfig(
         periphery_camera_name="head_periphery",
@@ -224,8 +238,8 @@ def test_dual_acuity_vision_config_validation() -> None:
         stream_height=48,
         fov_ratio=0.35,
     )
-    comp = myo_create_vision(cfg)
-    assert comp is not None
+    comp = _myo_vision_registry.build(cfg, name="dual_acuity")
+    assert isinstance(comp, DualAcuityVisionComponent)
 
     with pytest.raises(ValueError, match="fov_ratio"):
         DualAcuityVisionConfig(fov_ratio=1.5)

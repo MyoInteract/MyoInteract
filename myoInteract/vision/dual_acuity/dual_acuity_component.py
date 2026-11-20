@@ -35,7 +35,11 @@ def dual_acuity_rgb(
     periphery_sensor: CameraSensor = env.scene[periphery_sensor_name]
     raw_wide = periphery_sensor.data.rgb
     assert raw_wide is not None, f"Camera '{periphery_sensor_name}' has no RGB data"
-    wide = raw_wide.permute(0, 3, 1, 2).to(dtype=torch.float32, device=env.device).div_(255.0)
+    wide = (
+        raw_wide.permute(0, 3, 1, 2)
+        .to(dtype=torch.float32, device=env.device)
+        .div_(255.0)
+    )
 
     narrow = None
     if fovea_sensor_name is not None:

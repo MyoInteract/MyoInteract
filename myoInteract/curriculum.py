@@ -22,8 +22,14 @@ class ActionChunker:
     """
 
     def __init__(self, chunk_steps: int = 4, *, ema_alpha: float = 1.0) -> None:
-        if isinstance(chunk_steps, bool) or not isinstance(chunk_steps, int) or chunk_steps < 1:
-            raise ValueError(f"chunk_steps must be an integer >= 1, got {chunk_steps!r}")
+        if (
+            isinstance(chunk_steps, bool)
+            or not isinstance(chunk_steps, int)
+            or chunk_steps < 1
+        ):
+            raise ValueError(
+                f"chunk_steps must be an integer >= 1, got {chunk_steps!r}"
+            )
         if isinstance(ema_alpha, bool) or not (
             math.isfinite(ema_alpha) and 0.0 < ema_alpha <= 1.0
         ):
@@ -214,7 +220,9 @@ class ProgressiveJointSchedule:
             if self.ramp_steps == 0:
                 gain = st.max_gain
             else:
-                progress = min(1.0, float(step - st.unlock_step) / float(self.ramp_steps))
+                progress = min(
+                    1.0, float(step - st.unlock_step) / float(self.ramp_steps)
+                )
                 gain = st.max_gain * progress
             idx_arr = np.asarray(st.indices, dtype=np.intp)
             weights[idx_arr] = np.maximum(weights[idx_arr], float(gain))

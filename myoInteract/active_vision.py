@@ -47,7 +47,9 @@ class GazeDynamicsConfig:
             raise ValueError("init_uv must be a 2-element (u, v) coordinate.")
         u, v = float(self.init_uv[0]), float(self.init_uv[1])
         lo, hi = self.uv_margin, 1.0 - self.uv_margin
-        if not (math.isfinite(u) and math.isfinite(v) and lo <= u <= hi and lo <= v <= hi):
+        if not (
+            math.isfinite(u) and math.isfinite(v) and lo <= u <= hi and lo <= v <= hi
+        ):
             raise ValueError(f"init_uv must lie within [{lo}, {hi}]^2.")
         object.__setattr__(self, "init_uv", (u, v))
 
@@ -96,7 +98,9 @@ class GazeState:
         if self._use_torch:
             import torch
 
-            init_t = torch.tensor([u0, v0], dtype=self._uv.dtype, device=self._uv.device)
+            init_t = torch.tensor(
+                [u0, v0], dtype=self._uv.dtype, device=self._uv.device
+            )
             if env_ids is None:
                 self._uv[:] = init_t
             else:
@@ -153,7 +157,11 @@ class GazeState:
                 delta = cmd.clamp(-1.0, 1.0) * max_step
                 desired = (self._uv + delta).clamp(lo, hi)
             else:
-                target = 0.5 * (cmd.clamp(-1.0, 1.0) + 1.0) if mode == "target_signed" else cmd
+                target = (
+                    0.5 * (cmd.clamp(-1.0, 1.0) + 1.0)
+                    if mode == "target_signed"
+                    else cmd
+                )
                 target = target.clamp(lo, hi)
                 diff = target - self._uv
                 dist = torch.linalg.norm(diff, dim=-1, keepdim=True).clamp_min(1e-8)
@@ -181,9 +189,9 @@ class GazeState:
             dist_np = np.maximum(np.linalg.norm(diff_np, axis=-1, keepdims=True), 1e-8)
             step_scale_np = np.minimum(1.0, max_step / dist_np)
             desired_np = self._uv + diff_np * step_scale_np
-        self._uv = np.clip((1.0 - alpha) * self._uv + alpha * desired_np, lo, hi).astype(
-            np.float32
-        )
+        self._uv = np.clip(
+            (1.0 - alpha) * self._uv + alpha * desired_np, lo, hi
+        ).astype(np.float32)
         return self._uv
 
 
@@ -208,7 +216,9 @@ def crop_foveal_patch_tensor(
         Cropped foveal tensor of shape ``(B, C, patch_height, patch_width)``.
     """
     if images.ndim != 4:
-        raise ValueError(f"Expected 4D (B, C, H, W) tensor, got shape {tuple(images.shape)}.")
+        raise ValueError(
+            f"Expected 4D (B, C, H, W) tensor, got shape {tuple(images.shape)}."
+        )
     if patch_height < 1 or patch_width < 1:
         raise ValueError("patch_height and patch_width must be positive integers.")
     if not (math.isfinite(fov_ratio) and 0.0 < fov_ratio <= 1.0):
@@ -219,14 +229,18 @@ def crop_foveal_patch_tensor(
 
     bsz, channels, _, _ = images.shape
     work_dtype = (
-        images.dtype if images.dtype in (torch.float32, torch.float64) else torch.float32
+        images.dtype
+        if images.dtype in (torch.float32, torch.float64)
+        else torch.float32
     )
     work = images.to(dtype=work_dtype)
 
     uv = torch.as_tensor(fixation_uv, dtype=work_dtype, device=images.device)
     if uv.ndim == 1:
         if uv.numel() != 2:
-            raise ValueError(f"fixation_uv must have 2 elements, got {tuple(uv.shape)}.")
+            raise ValueError(
+                f"fixation_uv must have 2 elements, got {tuple(uv.shape)}."
+            )
         uv = uv.unsqueeze(0).expand(bsz, 2)
     elif uv.shape != (bsz, 2):
         raise ValueError(
