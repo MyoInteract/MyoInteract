@@ -3,3 +3,4 @@ from .vision_registry import myo_create_vision, myo_register_vision
 
 from .cnn import CnnVisionConfig, CnnVisionComponent
 from .disabled import DisabledVisionConfig, DisabledVisionComponent
+from .dual_acuity import DualAcuityVisionComponent, DualAcuityVisionConfig
